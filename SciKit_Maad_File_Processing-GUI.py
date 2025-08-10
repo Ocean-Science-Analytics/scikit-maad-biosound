@@ -99,8 +99,8 @@ def run_analysis():
 
                 try:
                     wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                    S = -100
-                    G = 0
+                    S = -185.5
+                    G = 20
 
                     # Calculate the total number of samples in the file
                     total_samples = len(wave)
@@ -159,7 +159,7 @@ def run_analysis():
                             fn=fn,
                             flim_low=[0, 1500],
                             flim_mid=[1500, 8000],
-                            flim_hi=[8000, 32000],
+                            flim_hi=[8000, 40000],
                             gain=G,
                             sensitivity=S,
                             verbose=False, 
@@ -186,8 +186,8 @@ def run_analysis():
 
                     try:
                         wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                        S = -100
-                        G = 0
+                        S = -185.5
+                        G = 20
 
                         Sxx_power, tn, fn, ext = sound.spectrogram (
                             x=wave,
@@ -217,7 +217,7 @@ def run_analysis():
                             fn=fn,
                             flim_low=[0, 1500],
                             flim_mid=[1500, 8000],
-                            flim_hi=[8000, 32000],
+                            flim_hi=[8000, 40000],
                             gain=G,
                             sensitivity=S,
                             verbose=False,
