@@ -1,39 +1,66 @@
 # Scikit-MAAD Acoustic Indices GUI
 
-A graphical tool for analyzing acoustic indices from WAV files using the [scikit-maad](https://scikit-maad.github.io/) library. This tool batch processes passive acoustic data to extract ecoacoustic indices commonly used in soundscape ecology and bioacoustic research.
+A user-friendly graphical tool for analyzing acoustic recordings from passive acoustic monitoring. Built on the [scikit-maad](https://scikit-maad.github.io/) library, this application processes WAV files to extract ecoacoustic indices commonly used in soundscape ecology, biodiversity monitoring, and bioacoustic research.
 
-## What It Does
+## What This Tool Does
 
-This application:
-- Processes WAV files to compute 60+ acoustic indices
-- Generates visualizations of acoustic patterns over time
-- Exports results as CSV for further analysis
-- Handles batch processing of multiple audio files
-- Creates correlation maps and false-color spectrograms
+**If you're new to acoustic analysis:** This tool takes audio recordings (like from wildlife monitoring equipment) and automatically calculates dozens of measurements that help scientists understand soundscape patterns, biodiversity, and acoustic activity over time.
 
-## Quick Start
+**The application:**
+- Processes WAV files to compute 60+ acoustic indices (measurements of sound characteristics)
+- Generates visualizations showing acoustic patterns over time
+- Exports results as CSV files for further analysis in Excel, R, or other tools
+- Handles batch processing of multiple audio files automatically
+- Creates correlation maps and false-color spectrograms for pattern analysis
 
-### For Users
+**Common use cases:**
+- Long-term biodiversity monitoring
+- Before/after environmental impact studies  
+- Seasonal acoustic pattern analysis
+- Habitat quality assessment through soundscape analysis
 
-1. **Requirements**
-   - Python 3.7+
-   - Required packages: `pip install numpy pandas matplotlib scikit-maad`
+## Installation & Setup
 
-2. **Launch the GUI**
+### Quick Setup
+
+1. **Clone this repository:**
    ```bash
-   python3 SciKit_Maad_File_Processing-GUI_Phase1.py
+   git clone <repository-url>
+   cd scikit-maad-biosound
    ```
 
-3. **Select folders**
+2. **Install uv** (if you don't have it):
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+   Or visit [docs.astral.sh/uv](https://docs.astral.sh/uv/) for other installation methods.
+
+3. **Install dependencies:**
+   ```bash
+   uv add numpy pandas matplotlib scikit-maad
+   ```
+
+4. **Run the application:**
+   ```bash
+   uv run python SciKit_Maad_File_Processing-GUI_Phase1.py
+   ```
+
+That's it! The GUI will open and you can start processing audio files.
+
+## Quick Start Guide
+
+### Basic Usage
+
+1. **Launch the application** using one of the installation methods above
+2. **Select folders** in the GUI:
    - **Input Folder**: Directory containing your WAV files
    - **Output Folder**: Where results will be saved
-
-4. **Choose time scale**
+3. **Choose time scale**:
    - **Hourly**: Averages indices over 1-hour periods
-   - **Dataset**: Processes entire files as single units
+   - **Dataset**: Processes entire files as single units  
    - **Manual**: Specify custom time intervals (in seconds)
-
-5. **Click "Run Analysis"** and wait for completion
+4. **Click "Run Analysis"** and wait for completion
+5. **Check your output folder** for results when done
 
 ### Input Format
 
@@ -60,7 +87,7 @@ The tool generates:
 For testing or development, you can generate sample WAV files:
 
 ```bash
-python3 test_utils/generate_test_wav.py
+uv run python test_utils/generate_test_wav.py
 ```
 
 This creates 3 test files (10 seconds each) with different acoustic characteristics:
@@ -91,17 +118,17 @@ Test files are saved in `test_data/` with proper naming convention.
 
 ## For Developers
 
-### Repository Structure
+### Running Tests
+
+**Basic tests** (no external dependencies):
+```bash
+uv run python test_basic.py
 ```
-scikit-maad-biosound/
-├── SciKit_Maad_File_Processing-GUI_Phase1.py  # Main application (stable)
-├── SciKit_Maad_File_Processing-GUI.py         # Original version
-├── test_utils/                                 # Test data generation
-│   └── generate_test_wav.py
-├── archive/                                    # Old versions/variants
-├── notes/                                      # Development documentation
-└── README.md
-```
+
+**Full test suite** (requires all dependencies):
+```bash
+uv run python test_acoustic_gui.py
+``` 
 
 ### Key Functions
 
@@ -123,7 +150,7 @@ See [scikit-maad documentation](https://scikit-maad.github.io/features.html) for
 
 ## Version History
 
-- **Phase 1** (Current) - Robust error handling, graceful degradation for missing indices
+- **Current** - Robust error handling, graceful degradation for missing indices
 - **Original** - Initial implementation by Jared Stephens (2023-2024)
 
 ## Contributing
@@ -134,4 +161,4 @@ Issues and improvements can be discussed via GitHub issues or direct collaborati
 
 - Built on [scikit-maad](https://scikit-maad.github.io/) by Ulloa et al.
 - Original GUI by Jared Stephens
-- Phase 1 improvements by M. Weirathmueller 
+- Updates and bug fixes by M. Weirathmueller 
