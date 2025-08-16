@@ -1,1 +1,32 @@
-/.idea
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Development notes (keep private)
+/notes
+
+# Test data and outputs
+/test_data
+/temp_output
+output_figures/
+Acoustic_Indices.csv
+
+# macOS
+.DS_Store
+
+# Archive folder (old versions)
+# Uncomment if you don't want to track archived versions
+# /archive
