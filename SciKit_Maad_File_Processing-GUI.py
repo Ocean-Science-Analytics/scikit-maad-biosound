@@ -2,7 +2,23 @@
 # Phase 1 Fix: Robust error handling and graceful degradation
 
 # Created by Jared Stephens 12/27/2023
+# Revised by Jared Stephens 02/14/2023
+    # Fixed date parsing error by creating "parse_date_and_filename_from_filename" function to manually extract the date and filename from each wav file.
+    # Also created dataframes to store Date and Filename info
+    # Then merged the Date/Filename dataframe with the acoustic indices dataframe.
+    # Changed "norm=True" to "norm=False" which solved most of the issues with the figures not dispalying data
+# Revised by Jared Stephens 03/11/2024
+    # Fixed false color spectrogram by including "results_df_per_bin" and "indices_per_bin" dataframes
+    # Increased the axis text size in all the figures
+    # Built a simple GUI with folder browsing options and a time scale choice between 24 hours (average across a full day) or the original dataset timescale
+# Revised by Jared Stephens 04/10/2024
+    # Added the manual time interval option which measures indices based off the user defined samples (time interval)
+    # Simplified the input for the six different indices for the 'individual features plot'
 # Modified by M. Weirathmueller August 2025 - bug fix + documentation updates
+
+#############################################################################################################################################################################################
+
+### NOTE FOR THE USER: To adjust the six different indices displayed in the 'individual features plot', see 'indice_one - indice_six' below the temporal features near the top
 
 import matplotlib.pyplot as plt
 import numpy as np
