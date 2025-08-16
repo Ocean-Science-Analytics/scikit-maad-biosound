@@ -1,6 +1,8 @@
 # Scikit-MAAD Acoustic Indices GUI
 
-A user-friendly graphical tool for analyzing acoustic recordings from passive acoustic monitoring. Built on the [scikit-maad](https://scikit-maad.github.io/) library, this application processes WAV files to extract acoustic indices commonly used in soundscape ecology, biodiversity monitoring, and bioacoustic research.
+Batch process passive acoustic data using this GUI-based wrapper around scikit-maad that allows users to select input/output folders and calculate acoustic indices at custom durations.
+
+Built on the [scikit-maad](https://scikit-maad.github.io/) library, this user-friendly graphical tool processes WAV files to extract acoustic indices commonly used in soundscape ecology, biodiversity monitoring, and bioacoustic research.
 
 ## What This Tool Does
 
