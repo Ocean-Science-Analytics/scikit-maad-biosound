@@ -26,7 +26,7 @@ import pandas as pd
 import os
 from maad import sound, features
 from maad.util import date_parser, plot_correlation_map, plot_features_map, plot_features, false_Color_Spectro
-from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox
+from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox, Radiobutton
 from tkinter import ttk  # For progress bar
 import datetime
 import traceback
@@ -431,9 +431,7 @@ def run_analysis():
         input_folder=input_folder_var.get(),
         output_folder=output_folder_var.get(),
         run_identifier=run_identifier_var.get().strip(),
-        mode_24h=mode_var_24h.get(),
-        mode_30min=mode_var_30min.get(),
-        mode_20min=mode_var_20min.get(),
+        time_scale=time_scale_var.get(),
         time_interval=time_interval_var.get(),
         flim_low_str=flim_low_var.get(),
         flim_mid_str=flim_mid_var.get(),
@@ -443,26 +441,11 @@ def run_analysis():
         compare_performance=compare_performance_var.get()
     )
     
-    # Validate time scale selection
-    if mode_var_24h.get() and mode_var_30min.get() and mode_var_20min.get():
+    # Validate time scale selection (radio buttons ensure only one selected)
+    time_scale = time_scale_var.get()
+    if not time_scale:  # Should never happen with radio buttons, but safety check
         hide_progress()
-        messagebox.showerror("Error", "Please select only one time scale option.")
-        return
-    elif mode_var_24h.get() and mode_var_30min.get():
-        hide_progress()
-        messagebox.showerror("Error", "Please select only one time scale option.")
-        return
-    elif mode_var_24h.get() and mode_var_20min.get():
-        hide_progress()
-        messagebox.showerror("Error", "Please select only one time scale option.")
-        return
-    elif mode_var_30min.get() and mode_var_20min.get():
-        hide_progress()
-        messagebox.showerror("Error", "Please select only one time scale option.")
-        return
-    elif not mode_var_24h.get() and not mode_var_30min.get() and not mode_var_20min.get():
-        hide_progress()
-        messagebox.showerror("Error", "Please select one time scale option.")
+        messagebox.showerror("Error", "Please select a time scale option.")
         return
     
     # Validate folders
@@ -481,13 +464,13 @@ def run_analysis():
         return
     
     # Determine mode
-    if mode_var_24h.get():
+    if time_scale == "hourly":
         mode = "24h"
         print("Time scale: Hourly")
-    elif mode_var_30min.get():
+    elif time_scale == "dataset":
         mode = "30min"
         print("Time scale: Dataset")
-    elif mode_var_20min.get():
+    elif time_scale == "manual":
         mode = "20min"
         print("Time scale: Manual")
         try:
@@ -838,7 +821,7 @@ def run_analysis():
                 print(f"    ERROR: {error_msg}")
                 errors.append(error_msg)
     
-    elif mode_var_24h.get() or mode_var_30min.get():
+    elif time_scale == "hourly" or time_scale == "dataset":
         # Hourly or Dataset mode
         for i, filename in enumerate(filename_list, 1):
             print(f"  Processing file {i}/{len(filename_list)}: {filename}")
@@ -923,7 +906,7 @@ def run_analysis():
     full_df = df.merge(result_df, how='inner', on='Filename')
     
     # Adjust dates for manual time interval mode
-    if mode_var_20min.get():
+    if time_scale == "manual":
         for filename in filename_list:
             filename_rows = full_df[full_df['Filename'] == filename]
             time_diff = pd.to_timedelta(np.arange(len(filename_rows)) * time_interval, unit='s')
@@ -1265,15 +1248,14 @@ identifier_entry.grid(row=3, column=2, padx=10, pady=10)
 hint_text = "(optional - prevents overwrites)"
 Label(root, text=hint_text, font=("Arial", 11, "italic"), bg="navy", fg="lightgray").grid(row=3, column=3, padx=10, pady=10, sticky='w')
 
-# Time Scale Checkboxes
-mode_var_24h = BooleanVar()
-mode_var_30min = BooleanVar()
-mode_var_20min = BooleanVar()
+# Time Scale Radio Buttons
+time_scale_var = StringVar()
+time_scale_var.set("dataset")  # Default to dataset mode
 
 Label(root, text="Time Scale:", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=1, padx=10, pady=10)
-Checkbutton(root, text="Hourly  ", font=("Arial", 16), variable=mode_var_24h, bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10)
-Checkbutton(root, text="Dataset", font=("Arial", 16), variable=mode_var_30min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=10, pady=10)
-Checkbutton(root, text="Manual ", font=("Arial", 16), variable=mode_var_20min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=6, column=2, padx=5, pady=5)
+Radiobutton(root, text="Hourly  ", font=("Arial", 16), variable=time_scale_var, value="hourly", bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10, sticky='w')
+Radiobutton(root, text="Dataset", font=("Arial", 16), variable=time_scale_var, value="dataset", bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=10, pady=10, sticky='w')
+Radiobutton(root, text="Manual ", font=("Arial", 16), variable=time_scale_var, value="manual", bg="navy", fg="white", selectcolor="darkgrey").grid(row=6, column=2, padx=5, pady=5, sticky='w')
 
 # Time Interval Input
 time_interval_var = StringVar()
