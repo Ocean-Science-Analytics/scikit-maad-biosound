@@ -149,7 +149,7 @@ class TestFileOperations(unittest.TestCase):
         shutil.rmtree(self.test_dir)
     
     def test_directory_creation(self):
-        """Test creation of output directories."""
+        """Test creation of test_outputs directories."""
         output_figures_path = os.path.join(self.test_dir, 'output_figures')
         os.makedirs(output_figures_path, exist_ok=True)
         

@@ -2,13 +2,14 @@
 
 ## Major Update: Frequency band fixes and GUI updates (August 2025)
 
-This version merges and corrects multiple iterations of the marine acoustics GUI that had diverged across different research groups. The primary fix addresses frequency band calculation errors identified through correspondence with the scikit-maad development team.
+This version merges and corrects a few iterations of the marine acoustics GUI that had diverged. The primary fix addresses frequency band calculation errors identified through correspondence with the scikit-maad development team.
 
 ### Key Technical Improvements
 
 **1. Corrected Marine Frequency Band Assignments**
-   - Anthrophony (vessel noise): 0-1000 Hz band properly isolated for ship traffic analysis
-   - Biophony (biological sounds): 1000-8000 Hz correctly captures cetacean vocalizations and fish choruses
+   - Anthrophony (vessel noise): 0-1000 Hz band includes the lower frequency human-made sounds, e.g., from vessels.
+   - Biophony (biological sounds): 1000-10000 Hz captures cetacean vocalizations and fish choruses
+   - **Validation confirmed**: All marine indices (NDSI, BioEnergy, AnthroEnergy, rBA, BI) produce identical results to direct scikit-maad function calls (whew!)
 
 **2. Parallel Processing Implementation**
    - Multiprocessing support reduces computation time by factor of 2-4x
@@ -29,6 +30,12 @@ This version merges and corrects multiple iterations of the marine acoustics GUI
    - Synthetic WAV files with realistic frequency content
    - Scenarios: vessel transits, dolphin echolocation, fish aggregations
    - Proper timestamp formatting for GUI compatibility
+
+**6. Enhanced Development Infrastructure**
+   - Proper Python package structure with `pyproject.toml`
+   - Removed brittle `sys.path` manipulation for reliable imports
+   - Automated validation system comparing calculations against direct scikit-maad calls
+   - Comprehensive test suite covering GUI integration and marine acoustics
 
 ### Migration Guide for Existing Projects
 
@@ -125,9 +132,9 @@ A GUI-based tool for batch processing marine passive acoustic data, built on the
    ```
    Or visit [docs.astral.sh/uv](https://docs.astral.sh/uv/) for other installation methods.
 
-3. **Install dependencies:**
+3. **Install the project and dependencies:**
    ```bash
-   uv add numpy pandas matplotlib scikit-maad
+   uv pip install -e .
    ```
 
 4. **Run the application:**
@@ -147,6 +154,12 @@ A GUI-based tool for batch processing marine passive acoustic data, built on the
    python generate_samples.py
    ```
 
+6. **(Optional) Validate calculations:**
+   ```bash
+   python scripts/validate_calculations.py
+   ```
+   This runs our implementation against direct scikit-maad calls to ensure calculations are correct. Generates validation reports in JSON and human-readable formats.
+
 That's it! The GUI will open and you can start processing audio files.
 
 ## Quick Start Guide
@@ -163,8 +176,8 @@ That's it! The GUI will open and you can start processing audio files.
    - **Dataset**: Processes entire files as single units  
    - **Manual**: Specify custom time intervals (in seconds)
 5. **Optional: Adjust Acoustic Settings** (uses defaults if blank):
-   - **Anthrophony Range**: Frequency range for human noise (default: 0-1500 Hz)
-   - **Biophony Range**: Frequency range for biological sounds (default: 1500-8000 Hz)
+   - **Anthrophony Range**: Frequency range for human noise (default: 0-1000 Hz)
+   - **Biophony Range**: Frequency range for biological sounds (default: 1000-10000 Hz)
    - **Sensitivity**: Hydrophone sensitivity (default: -35.0 dB)
    - **Gain**: Recording system gain (default: 0.0 dB)
 6. **Click "Run Analysis"** and monitor progress bar
@@ -217,6 +230,17 @@ Sample scenarios include:
 
 Test files are saved in `test_wav_files/` with proper naming convention and realistic frequency content for testing the marine acoustic features.
 
+## Validation and Development Scripts
+
+The `scripts/` folder contains development and validation tools:
+
+- **`validate_calculations.py`** - Validates our implementation against direct scikit-maad calls
+- **`compare_versions.py`** - Compares results across different code versions  
+- **`test_fixed_marine_indices.py`** - Tests specific marine acoustic calculations
+- **`explain_frequency_bands.py`** - Demonstrates frequency band allocation logic
+
+Validation reports are automatically saved to the scripts folder with timestamps.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -257,8 +281,23 @@ uv run python test_basic.py
 
 **Full test suite** (requires all dependencies):
 ```bash
-uv run python test_acoustic_gui.py
-``` 
+uv run python tests/test_suite.py
+```
+
+**Calculation validation** (verify against scikit-maad):
+```bash
+python scripts/validate_calculations.py
+```
+
+### Validation Results
+
+Our implementation has been validated against direct scikit-maad function calls:
+- ✅ **12/12 comparisons passed** with perfect numerical agreement
+- ✅ **Marine indices verified**: NDSI, BioEnergy, AnthroEnergy, rBA, BI all match exactly (0.00e+00 difference)
+- ✅ **Standard indices confirmed**: ZCR, MEANf, VARf, SKEWf, KURTf, Ht, Hf match scikit-maad exactly
+- 📄 **Validation reports**: Generated in both JSON (machine-readable) and TXT (human-readable) formats
+
+This validation ensures our marine acoustic processing produces scientifically accurate results. 
 
 ### Key Functions
 

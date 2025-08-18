@@ -20,9 +20,9 @@ from maad import sound, features
 
 # Import debug configuration
 try:
-    from gui.debug_config import verbose_print
+    from utils.debug_utils import verbose_print
 except ImportError:
-    # Fallback if debug_config not available (for standalone use)
+    # Fallback if debug_utils not available (for standalone use)
     def verbose_print(message):
         pass
 

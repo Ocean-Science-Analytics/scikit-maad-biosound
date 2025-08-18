@@ -435,7 +435,7 @@ def run_analysis():
         messagebox.showerror("Error", "Please select an input folder.")
         return
     if not output_folder:
-        messagebox.showerror("Error", "Please select an output folder.")
+        messagebox.showerror("Error", "Please select an test_outputs folder.")
         return
     if not os.path.exists(input_folder):
         messagebox.showerror("Error", f"Input folder does not exist:\n{input_folder}")
@@ -583,7 +583,7 @@ def run_analysis():
         parallel_results = process_files_parallel(full_file_paths, processing_params)
         parallel_time = time.time() - start_time
         
-        # Use parallel results for final output
+        # Use parallel results for final test_outputs
         processing_results = parallel_results
         files_processed = len([r for r in processing_results if r is not None])
         files_failed = len([r for r in processing_results if r is None])
@@ -611,7 +611,7 @@ def run_analysis():
                     sequential_time, parallel_time, len(filename_list), 
                     min(cpu_count() - 1, 4), output_folder, additional_info
                 )
-                print("📊 Performance comparison report saved to output folder")
+                print("📊 Performance comparison report saved to test_outputs folder")
             except Exception as e:
                 print(f"Note: Could not generate performance report: {e}")
         
@@ -868,7 +868,7 @@ def run_analysis():
     if missing_plot_indices:
         print(f"  WARNING: Some indices not available: {', '.join(missing_plot_indices)}")
     
-    # Create output figures directory
+    # Create test_outputs figures directory
     output_figures_path = os.path.join(output_folder, "output_figures")
     os.makedirs(output_figures_path, exist_ok=True)
     

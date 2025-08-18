@@ -87,7 +87,7 @@ def test_run_analysis_mock():
             # Simulate the GUI state
             gui_state = {
                 'input_folder': '/test/input',
-                'output_folder': '/test/output',
+                'output_folder': '/test/test_outputs',
                 'flim_low': '0,1000',
                 'flim_mid': '1000,8000',
                 'sensitivity': '-169.4',

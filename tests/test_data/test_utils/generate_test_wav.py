@@ -21,7 +21,7 @@ def generate_test_wav(output_dir="test_data", duration=10, sample_rate=22050):
         sample_rate: Sample rate in Hz (default 22050 for smaller files)
     """
     
-    # Create output directory
+    # Create test_outputs directory
     os.makedirs(output_dir, exist_ok=True)
     print(f"Creating test WAV files in '{output_dir}' directory...")
     

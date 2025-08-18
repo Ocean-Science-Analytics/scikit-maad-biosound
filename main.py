@@ -5,36 +5,27 @@ This script sets up the proper paths and launches the main GUI.
 
 Usage:
     python main.py              # Normal operation
-    python main.py --debug      # Enable debug output
-    python main.py --verbose    # Enable verbose processing output
+    python main.py --debug      # Enable debug test_outputs
+    python main.py --verbose    # Enable verbose processing test_outputs
 """
 
-import os
-import sys
 import argparse
-from pathlib import Path
-
-# Add src directory to Python path
-project_root = Path(__file__).parent
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
 
 def main():
     parser = argparse.ArgumentParser(description='Scikit-MAAD Acoustic Indices GUI')
     parser.add_argument('--debug', action='store_true', 
-                       help='Enable debug output for troubleshooting')
+                       help='Enable debug test_outputs for troubleshooting')
     parser.add_argument('--verbose', action='store_true',
-                       help='Enable verbose processing output')
+                       help='Enable verbose processing test_outputs')
     
     args = parser.parse_args()
     
     # Set global debug flags that modules can import
-    import gui.debug_config
-    gui.debug_config.DEBUG_MODE = args.debug
-    gui.debug_config.VERBOSE_MODE = args.verbose
+    from src.utils import debug_utils
+    debug_utils.configure_debug(debug=args.debug, verbose=args.verbose)
     
     # Import and run the main GUI
-    import gui.main_gui
+    from src.gui import main_gui
 
 if __name__ == "__main__":
     main()

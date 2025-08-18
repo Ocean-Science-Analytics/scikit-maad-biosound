@@ -4,22 +4,17 @@ Core processing functions extracted from GUI for standalone testing.
 This module contains the processing logic without GUI dependencies.
 """
 
-import os
-import sys
 import time
 import pandas as pd
 from multiprocessing import Pool, cpu_count
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from processing.standalone_processor import process_single_file_standalone
 
 # Import debug configuration
 try:
-    from gui.debug_config import debug_print
+    from utils.debug_utils import debug_print
 except ImportError:
-    # Fallback if debug_config not available (for standalone use)
+    # Fallback if debug_utils not available (for standalone use)
     def debug_print(message):
         pass
 

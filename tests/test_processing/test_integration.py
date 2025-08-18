@@ -14,7 +14,7 @@ def test_standard_workflow():
     # Simulate standard user workflow
     workflow_params = {
         'input_folder': '/test/input',
-        'output_folder': '/test/output',
+        'output_folder': '/test/test_outputs',
         'mode': 'dataset',
         'flim_low_str': '',      # Empty - use defaults
         'flim_mid_str': '',      # Empty - use defaults  

@@ -6,7 +6,7 @@ Captures comprehensive information about each analysis run including:
 - User settings and parameters
 - File paths and processing details
 - System information and performance metrics
-- Results and output locations
+- Results and test_outputs locations
 """
 
 import json
@@ -66,7 +66,7 @@ class RunMetadata:
         self.metadata['processing_info'].update(kwargs)
         
     def add_file_info(self, input_files, output_files):
-        """Add information about input and output files"""
+        """Add information about input and test_outputs files"""
         self.metadata['file_manifest'] = {
             'input_files': {
                 'count': len(input_files),
@@ -111,9 +111,9 @@ class RunMetadata:
             return 0
             
     def _save_metadata(self):
-        """Save metadata to JSON file in output folder"""
+        """Save metadata to JSON file in test_outputs folder"""
         try:
-            # Create output folder if it doesn't exist
+            # Create test_outputs folder if it doesn't exist
             os.makedirs(self.output_folder, exist_ok=True)
             
             # Generate filename using run_identifier and timestamp
@@ -218,7 +218,7 @@ def create_run_metadata(output_folder):
     return RunMetadata(output_folder)
 
 def list_previous_runs(output_folder):
-    """List all previous runs in the output folder"""
+    """List all previous runs in the test_outputs folder"""
     try:
         metadata_files = []
         for filename in os.listdir(output_folder):
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     metadata = create_run_metadata("/tmp/test_output")
     metadata.start_run(
         input_folder="/test/input",
-        output_folder="/test/output",
+        output_folder="/test/test_outputs",
         mode="dataset",
         flim_low=[0, 1000],
         flim_mid=[1000, 8000],

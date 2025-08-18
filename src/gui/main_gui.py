@@ -43,7 +43,7 @@ import os
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.run_metadata import create_run_metadata
-from gui.debug_config import debug_print
+from utils.debug_utils import debug_print
 
 # Define spectral and temporal features
 SPECTRAL_FEATURES=['MEANf','VARf','SKEWf','KURTf','NBPEAKS','LEQf',
@@ -513,7 +513,7 @@ def run_analysis():
         messagebox.showerror("Error", "Please select an input folder.")
         return
     if not output_folder:
-        messagebox.showerror("Error", "Please select an output folder.")
+        messagebox.showerror("Error", "Please select an test_outputs folder.")
         return
     if not os.path.exists(input_folder):
         hide_progress()
@@ -684,7 +684,7 @@ def run_analysis():
         parallel_results = process_files_parallel(full_file_paths, processing_params)
         parallel_time = time.time() - start_time
         
-        # Use parallel results for final output
+        # Use parallel results for final test_outputs
         processing_results = parallel_results
         files_processed = len([r for r in processing_results if r is not None])
         files_failed = len([r for r in processing_results if r is None])
@@ -725,7 +725,7 @@ def run_analysis():
                     sequential_time, parallel_time, len(filename_list), 
                     min(cpu_count() - 1, 4), perf_report_folder, additional_info
                 )
-                print("📊 Performance comparison report saved to output folder")
+                print("📊 Performance comparison report saved to test_outputs folder")
             except Exception as e:
                 print(f"Note: Could not generate performance report: {e}")
         
@@ -773,12 +773,12 @@ def run_analysis():
     input_files = [os.path.join(input_folder, f) for f in filename_list]
     output_files = []
     try:
-        # Try to list output files
+        # Try to list test_outputs files
         for f in os.listdir(output_folder):
             if f.endswith(('.csv', '.png', '.pdf', '.json', '.txt')):
                 output_files.append(f)
     except:
-        pass  # If we can't list output files, that's okay
+        pass  # If we can't list test_outputs files, that's okay
     
     run_metadata.add_file_info(input_files, output_files)
     
@@ -1024,7 +1024,7 @@ def run_analysis():
             time_diff = pd.to_timedelta(np.arange(len(filename_rows)) * time_interval, unit='s')
             full_df.loc[full_df['Filename'] == filename, 'Date'] += time_diff
     
-    # Create organized output directory structure first
+    # Create organized test_outputs directory structure first
     output_figures_path = os.path.join(output_folder, "figures")
     output_metadata_path = os.path.join(output_folder, "metadata")
     output_csv_path = os.path.join(output_folder, "data")
@@ -1070,7 +1070,7 @@ def run_analysis():
             message += "2. You accidentally reused a previous identifier\n\n"
             message += "To avoid overwriting:\n"
             message += "• Change your Run Identifier (e.g., add '_v2', date, etc.)\n"
-            message += "• Choose a different output folder\n\n"
+            message += "• Choose a different test_outputs folder\n\n"
             message += "Continue and overwrite existing files?"
         else:
             # No identifier provided
@@ -1078,7 +1078,7 @@ def run_analysis():
             message += "\n".join(f"  • {f}" for f in existing_files)
             message += "\n\nTo avoid overwriting:\n"
             message += "1. Add a Run Identifier (e.g., 'Station1_2024')\n"
-            message += "2. Choose a different output folder\n\n"
+            message += "2. Choose a different test_outputs folder\n\n"
             message += "Continue and overwrite existing files?"
         
         result = messagebox.askyesno("Overwrite Warning", message, icon='warning')

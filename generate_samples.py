@@ -22,7 +22,7 @@ if __name__ == "__main__":
 Examples:
   python generate_samples.py                    # Create 5 files in 'test_wav_files'
   python generate_samples.py -n 10              # Create 10 sample files
-  python generate_samples.py -o my_samples      # Use custom output directory
+  python generate_samples.py -o my_samples      # Use custom test_outputs directory
   python generate_samples.py -d 60              # Create 60-second files
   
 The files will contain realistic marine acoustic scenarios:
@@ -34,7 +34,7 @@ The files will contain realistic marine acoustic scenarios:
         """
     )
     
-    parser.add_argument("--output", "-o", default="test_wav_files", 
+    parser.add_argument("--test_outputs", "-o", default="test_wav_files",
                        help="Output directory for WAV files (default: test_wav_files)")
     parser.add_argument("--num-files", "-n", type=int, default=5,
                        help="Number of files to create (default: 5, max: 5)")

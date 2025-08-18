@@ -56,3 +56,6 @@ Acoustic_Indices.csv
 /performance_report*.txt
 
 *.wav
+
+scripts/**/*.json
+scripts/**/*.txt

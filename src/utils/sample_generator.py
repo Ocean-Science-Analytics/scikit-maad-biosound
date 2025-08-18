@@ -232,7 +232,7 @@ def create_test_dataset(output_dir="test_wav_files", num_files=5, duration=30):
     print("\nYou can now:")
     print(f"1. Launch the GUI: python main.py")
     print(f"2. Select '{output_dir}' as the input folder")
-    print(f"3. Choose an output folder for results")
+    print(f"3. Choose an test_outputs folder for results")
     print(f"4. Run the analysis to see acoustic indices and visualizations")
     
     return output_dir
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Create sample marine acoustic WAV files for testing")
-    parser.add_argument("--output", "-o", default="test_wav_files", 
+    parser.add_argument("--test_outputs", "-o", default="test_wav_files",
                        help="Output directory for WAV files (default: test_wav_files)")
     parser.add_argument("--num-files", "-n", type=int, default=5,
                        help="Number of files to create (default: 5)")

@@ -164,11 +164,11 @@ def test_gui_backwards_compatibility():
     return results
 
 def test_output_format_compatibility():
-    """Test that output CSV format remains compatible"""
+    """Test that test_outputs CSV format remains compatible"""
     
     results = {'passed': 0, 'failed': 0, 'details': []}
     
-    # Original output should contain all expected columns
+    # Original test_outputs should contain all expected columns
     original_columns = [
         'Date', 'Filename',
         # Temporal indices
@@ -184,32 +184,32 @@ def test_output_format_compatibility():
         'rBA_marine', 'BI_marine'
     ]
     
-    # Simulate output with no marine processing
+    # Simulate test_outputs with no marine processing
     standard_output_columns = original_columns.copy()
     
-    # Check that standard output doesn't include marine columns
+    # Check that standard test_outputs doesn't include marine columns
     marine_in_standard = any(col in standard_output_columns for col in marine_columns)
     
     if not marine_in_standard:
         results['passed'] += 1
-        results['details'].append("✓ Standard output excludes marine indices")
+        results['details'].append("✓ Standard test_outputs excludes marine indices")
     else:
         results['failed'] += 1
-        results['details'].append("❌ Marine indices appear in standard output")
+        results['details'].append("❌ Marine indices appear in standard test_outputs")
     
-    # Simulate output with marine processing
+    # Simulate test_outputs with marine processing
     marine_output_columns = original_columns + marine_columns
     
-    # Check that marine output includes both standard and marine columns
+    # Check that marine test_outputs includes both standard and marine columns
     all_standard_present = all(col in marine_output_columns for col in original_columns[:5])
     some_marine_present = any(col in marine_output_columns for col in marine_columns)
     
     if all_standard_present and some_marine_present:
         results['passed'] += 1
-        results['details'].append("✓ Marine output includes both standard and marine indices")
+        results['details'].append("✓ Marine test_outputs includes both standard and marine indices")
     else:
         results['failed'] += 1
-        results['details'].append("❌ Marine output missing expected columns")
+        results['details'].append("❌ Marine test_outputs missing expected columns")
     
     return results
 

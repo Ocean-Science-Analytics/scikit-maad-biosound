@@ -2,21 +2,17 @@
 """
 Debug configuration module for controlling output verbosity.
 
+DEPRECATED: This module now imports from utils.debug_utils for compatibility.
+New code should import directly from utils.debug_utils.
+
 Global flags that can be set by main.py and used throughout the application:
 - DEBUG_MODE: Controls [DEBUG] messages for troubleshooting multiprocessing, data flow, etc.
 - VERBOSE_MODE: Controls [STANDALONE] and other verbose processing messages
 """
 
-# Default to quiet operation
-DEBUG_MODE = False
-VERBOSE_MODE = False
-
-def debug_print(message):
-    """Print debug message only if DEBUG_MODE is enabled"""
-    if DEBUG_MODE:
-        print(message)
-
-def verbose_print(message):
-    """Print verbose message only if VERBOSE_MODE is enabled"""
-    if VERBOSE_MODE:
-        print(message)
+# Import from shared utilities for backward compatibility
+from utils.debug_utils import (
+    DEBUG_MODE, VERBOSE_MODE, 
+    debug_print, verbose_print,
+    set_debug_mode, set_verbose_mode, configure_debug
+)
