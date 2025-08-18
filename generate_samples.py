@@ -10,7 +10,7 @@ import os
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from utils.sample_generator import create_test_dataset
+from src.utils.sample_generator import create_test_dataset
 
 if __name__ == "__main__":
     import argparse

@@ -135,6 +135,13 @@ A GUI-based tool for batch processing marine passive acoustic data, built on the
    python main.py
    ```
    
+   **Debug and Verbose Modes** (optional):
+   ```bash
+   python main.py --debug       # Show debug output for troubleshooting
+   python main.py --verbose     # Show detailed processing steps
+   python main.py --debug --verbose  # Show all diagnostic output
+   ```
+   
 5. **(Optional) Generate test files:**
    ```bash
    python generate_samples.py
@@ -228,6 +235,16 @@ Test files are saved in `test_wav_files/` with proper naming convention and real
 - Try using shorter time intervals with Manual mode
 - Process files in smaller batches
 - Consider downsampling audio files before processing
+
+**Debugging multiprocessing issues**
+- Run with `python main.py --debug` to see detailed multiprocessing diagnostics
+- Shows worker creation, file distribution, and result collection
+- Helps identify where processing may be stalling
+
+**Monitoring processing progress**
+- Run with `python main.py --verbose` to see detailed processing steps
+- Shows spectrogram calculation, index computation, and marine corrections
+- Useful for understanding what stage each file is in
 
 ## For Developers
 
