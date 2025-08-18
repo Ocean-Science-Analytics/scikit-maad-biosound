@@ -31,3 +31,5 @@ Acoustic_Indices.csv
 # Uncomment if you don't want to track archived versions
 # /archive
 /.idea
+/performance_report*.json
+/performance_report*.txt
