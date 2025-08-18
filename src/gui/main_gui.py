@@ -1118,7 +1118,7 @@ def run_analysis():
     available_indices = [col for col in full_df.columns if col not in ['Date', 'Filename']]
     print(f"  Found {len(available_indices)} indices")
     
-    # Check for the six plotting indices
+    # Check for the six plotting indices and handle missing ones
     plot_indices = {
         'indice_one': indice_one,
         'indice_two': indice_two,
@@ -1128,14 +1128,38 @@ def run_analysis():
         'indice_six': indice_six
     }
     
+    # Handle missing indices with automatic fallback
     missing_plot_indices = []
     for name, index in plot_indices.items():
         if index not in full_df.columns:
             missing_plot_indices.append(index)
-            warnings.append(f"Index '{index}' not available for plotting")
+            # Special handling for indice_six (ROItotal) - find an alternative
+            if name == 'indice_six':
+                # List of alternative indices to try if ROItotal is not available
+                alternatives = ['ROIcover', 'BGNf', 'SNRf', 'MEANf', 'VARf', 'Ht', 'MEANt']
+                replacement_found = False
+                for alt_index in alternatives:
+                    if alt_index in available_indices:
+                        print(f"  INFO: '{index}' not available, using '{alt_index}' instead for {name}")
+                        # Update the global variable for indice_six
+                        globals()['indice_six'] = alt_index
+                        plot_indices[name] = alt_index
+                        replacement_found = True
+                        break
+                if not replacement_found:
+                    # If no good alternative found, use the first available index
+                    if available_indices:
+                        fallback = available_indices[0]
+                        print(f"  INFO: '{index}' not available, using '{fallback}' as fallback for {name}")
+                        globals()['indice_six'] = fallback
+                        plot_indices[name] = fallback
+                    else:
+                        warnings.append(f"Index '{index}' not available for plotting and no alternatives found")
+            else:
+                warnings.append(f"Index '{index}' not available for plotting")
     
     if missing_plot_indices:
-        print(f"  WARNING: Some indices not available: {', '.join(missing_plot_indices)}")
+        print(f"  Note: Some indices were not available but alternatives were used where possible")
     
     # Prepare dataframe for plotting
     full_df['Date'] = pd.to_datetime(full_df['Date'])
@@ -1153,6 +1177,7 @@ def run_analysis():
         # Use run identifier for figure naming
         correlation_filename = f"{run_id}_correlation_map.png" if run_id else "correlation_map.png"
         fig_correlation.savefig(os.path.join(output_figures_path, correlation_filename))
+        plt.close(fig_correlation)  # Close the figure to avoid confusion
         print(f"    Saved: {correlation_filename}")
     except Exception as e:
         error_msg = f"Correlation map failed: {str(e)}"
@@ -1165,18 +1190,19 @@ def run_analysis():
         print("  Creating individual features plot...")
         fig, ax = plt.subplots(3, 2, sharex=True, squeeze=True, figsize=(16, 14))
         
-        # Plot each index with error handling
-        fig, ax[0, 0] = safe_plot_index(full_df, indice_one, ax[0, 0], mode, 'indice_one')
-        fig, ax[0, 1] = safe_plot_index(full_df, indice_two, ax[0, 1], mode, 'indice_two')
-        fig, ax[1, 0] = safe_plot_index(full_df, indice_three, ax[1, 0], mode, 'indice_three')
-        fig, ax[1, 1] = safe_plot_index(full_df, indice_four, ax[1, 1], mode, 'indice_four')
-        fig, ax[2, 0] = safe_plot_index(full_df, indice_five, ax[2, 0], mode, 'indice_five')
-        fig, ax[2, 1] = safe_plot_index(full_df, indice_six, ax[2, 1], mode, 'indice_six')
+        # Plot each index with error handling (use potentially updated indices from plot_indices)
+        fig, ax[0, 0] = safe_plot_index(full_df, plot_indices['indice_one'], ax[0, 0], mode, 'indice_one')
+        fig, ax[0, 1] = safe_plot_index(full_df, plot_indices['indice_two'], ax[0, 1], mode, 'indice_two')
+        fig, ax[1, 0] = safe_plot_index(full_df, plot_indices['indice_three'], ax[1, 0], mode, 'indice_three')
+        fig, ax[1, 1] = safe_plot_index(full_df, plot_indices['indice_four'], ax[1, 1], mode, 'indice_four')
+        fig, ax[2, 0] = safe_plot_index(full_df, plot_indices['indice_five'], ax[2, 0], mode, 'indice_five')
+        fig, ax[2, 1] = safe_plot_index(full_df, plot_indices['indice_six'], ax[2, 1], mode, 'indice_six')
         
         fig.suptitle('Individual Acoustic Features', fontsize=16)
         fig.tight_layout()
         features_filename = f"{run_id}_individual_features.png" if run_id else "individual_features.png"
         fig.savefig(os.path.join(output_figures_path, features_filename))
+        plt.close(fig)  # Close the figure to avoid confusion with next plot
         print(f"    Saved: {features_filename}")
     except Exception as e:
         error_msg = f"Individual features plot failed: {str(e)}"
@@ -1188,29 +1214,72 @@ def run_analysis():
     try:
         print("  Creating false color spectrogram...")
         print(f"    Per-bin DataFrame shape: {result_df_per_bin.shape}")
-        print(f"    Per-bin DataFrame columns: {list(result_df_per_bin.columns)}")
+        print(f"    Per-bin DataFrame columns: {list(result_df_per_bin.columns)[:10]}...")  # Show first 10 columns
+        
+        spectro_filename = f"{run_id}_false_color_spectrograms.png" if run_id else "false_color_spectrograms.png"
         
         if result_df_per_bin.empty:
             print("    WARNING: Per-bin DataFrame is empty, cannot create false color spectrogram")
             # Create placeholder figure
-            fig, ax = plt.subplots(1, 1, figsize=(16, 14))
+            fig_spectro, ax = plt.subplots(1, 1, figsize=(16, 14))
             ax.text(0.5, 0.5, "False Color Spectrogram\n(No per-bin data available)", 
                    ha='center', va='center', transform=ax.transAxes,
                    fontsize=16, color='gray')
             ax.set_title("False Color Spectrogram - No Data")
+            fig_spectro.savefig(os.path.join(output_figures_path, spectro_filename))
+            plt.close(fig_spectro)
+            print(f"    Saved placeholder: {spectro_filename}")
         else:
+            # Check if required indices exist
+            required_indices = ['KURTt_per_bin', 'EVNspCount_per_bin', 'MEANt_per_bin']
+            missing_indices = [idx for idx in required_indices if idx not in result_df_per_bin.columns]
+            
+            # Determine which indices to use
+            indices_to_use = required_indices
+            if missing_indices:
+                print(f"    WARNING: Missing required indices: {missing_indices}")
+                # Look for alternative per-bin columns
+                per_bin_cols = [col for col in result_df_per_bin.columns if col.endswith('_per_bin')]
+                print(f"    Available per-bin columns: {per_bin_cols[:10]}")
+                
+                if len(per_bin_cols) >= 3:
+                    indices_to_use = per_bin_cols[:3]
+                    print(f"    Using alternative indices: {indices_to_use}")
+                else:
+                    print(f"    ERROR: Not enough per-bin columns (found {len(per_bin_cols)})")
+                    # Create placeholder
+                    fig_spectro, ax = plt.subplots(1, 1, figsize=(16, 14))
+                    ax.text(0.5, 0.5, f"False Color Spectrogram\n(Insufficient per-bin data: only {len(per_bin_cols)} columns)", 
+                           ha='center', va='center', transform=ax.transAxes,
+                           fontsize=16, color='gray')
+                    ax.set_title("False Color Spectrogram - Insufficient Data")
+                    fig_spectro.savefig(os.path.join(output_figures_path, spectro_filename))
+                    plt.close(fig_spectro)
+                    print(f"    Saved placeholder: {spectro_filename}")
+                    raise Exception("Insufficient per-bin data")
+            
+            # Create the false color spectrogram
+            print(f"    Generating false color spectrogram with indices: {indices_to_use}")
+            
+            # Clear any existing figures first
+            plt.close('all')
+            
+            # Call the function with display=True to ensure figure is created
             fcs, triplet = false_Color_Spectro(
                 df=result_df_per_bin,
-                indices=['KURTt_per_bin', 'EVNspCount_per_bin', 'MEANt_per_bin'],
+                indices=indices_to_use,
                 reverseLUT=False,
                 unit='days',
                 permut=False,
-                display=False,
+                display=True,  # Changed to True to ensure figure is displayed
                 figsize=(16, 14)
             )
-        spectro_filename = f"{run_id}_false_color_spectrograms.png" if run_id else "false_color_spectrograms.png"
-        plt.savefig(os.path.join(output_figures_path, spectro_filename))
-        print(f"    Saved: {spectro_filename}")
+            
+            # Get the current figure and save it
+            fig = plt.gcf()
+            fig.savefig(os.path.join(output_figures_path, spectro_filename), dpi=100, bbox_inches='tight')
+            plt.close('all')
+            print(f"    Saved: {spectro_filename}")
     except Exception as e:
         error_msg = f"False color spectrogram failed: {str(e)}"
         plots_failed.append("false_color_spectrogram")
