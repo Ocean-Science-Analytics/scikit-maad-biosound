@@ -52,6 +52,87 @@ indice_four='ACI'
 indice_five='TFSD'
 indice_six='ROItotal'  # Note: This may not always be computed
 
+def calculate_marine_biophony_anthrophony(Sxx_power, fn, flim_low, flim_mid):
+    """
+    Calculate anthrophony and biophony for marine environments.
+    
+    Based on correspondence with Sylvain Haupert (scikit-maad developer):
+    - Anthrophony: flim_low range (vessel noise, typically 0-1000 Hz)
+    - Biophony: flim_mid range (biological sounds, typically 1000-8000 Hz)
+    
+    Args:
+        Sxx_power: Power spectrogram
+        fn: Frequency array
+        flim_low: [min, max] frequency range for anthrophony (vessel noise)
+        flim_mid: [min, max] frequency range for biophony (biological sounds)
+    
+    Returns:
+        tuple: (anthrophony_energy, biophony_energy)
+    """
+    # Extract power in anthrophony band (low frequencies - vessel noise)
+    anthro_mask = (fn >= flim_low[0]) & (fn < flim_low[1])
+    anthrophony_power = Sxx_power[anthro_mask]
+    anthrophony_energy = np.sum(anthrophony_power)
+    
+    # Extract power in biophony band (mid frequencies - biological sounds)
+    bio_mask = (fn >= flim_mid[0]) & (fn < flim_mid[1])
+    biophony_power = Sxx_power[bio_mask]
+    biophony_energy = np.sum(biophony_power)
+    
+    return anthrophony_energy, biophony_energy
+
+def calculate_marine_indices(Sxx_power, fn, flim_low, flim_mid, S=-35.0, G=0.0):
+    """
+    Calculate marine-specific acoustic indices with corrected frequency bands.
+    
+    This function specifically handles NDSI, BioEnergy, AnthroEnergy, rBA, and BI
+    with marine-appropriate frequency band assignments.
+    
+    Args:
+        Sxx_power: Power spectrogram
+        fn: Frequency array
+        flim_low: Anthrophony frequency range [min, max]
+        flim_mid: Biophony frequency range [min, max]
+        S: Sensitivity (dB)
+        G: Gain (dB)
+    
+    Returns:
+        dict: Dictionary of calculated marine indices
+    """
+    # Calculate anthrophony and biophony energies
+    anthro_energy, bio_energy = calculate_marine_biophony_anthrophony(
+        Sxx_power, fn, flim_low, flim_mid
+    )
+    
+    # Calculate marine-specific indices
+    marine_indices = {}
+    
+    # NDSI (Normalized Difference Soundscape Index)
+    if (bio_energy + anthro_energy) > 0:
+        marine_indices['NDSI_marine'] = (bio_energy - anthro_energy) / (bio_energy + anthro_energy)
+    else:
+        marine_indices['NDSI_marine'] = 0
+    
+    # Energy metrics
+    marine_indices['BioEnergy_marine'] = bio_energy
+    marine_indices['AnthroEnergy_marine'] = anthro_energy
+    
+    # rBA (ratio of biophony to anthrophony)
+    if anthro_energy > 0:
+        marine_indices['rBA_marine'] = bio_energy / anthro_energy
+    else:
+        marine_indices['rBA_marine'] = np.inf if bio_energy > 0 else 0
+    
+    # BI (Bioacoustic Index) - calculated on biophony band
+    bio_mask = (fn >= flim_mid[0]) & (fn < flim_mid[1])
+    if np.any(bio_mask):
+        bio_spectrum = np.mean(Sxx_power[bio_mask, :], axis=1) if len(Sxx_power.shape) > 1 else Sxx_power[bio_mask]
+        marine_indices['BI_marine'] = np.sum(bio_spectrum * np.log10(bio_spectrum + 1e-10))
+    else:
+        marine_indices['BI_marine'] = 0
+    
+    return marine_indices
+
 def safe_plot_index(df, index_name, ax, mode, position_label):
     """
     Safely plot an acoustic index with error handling.
@@ -151,6 +232,50 @@ def run_analysis():
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid integer for time interval (seconds).")
             return
+    
+    # Parse optional marine acoustic parameters
+    # Use defaults if not specified
+    flim_low = [0, 1500]  # Default anthrophony range
+    flim_mid = [1500, 8000]  # Default biophony range
+    sensitivity = -35.0  # Default sensitivity
+    gain = 0.0  # Default gain
+    
+    # Check if user provided custom frequency bands
+    if flim_low_var.get().strip():
+        try:
+            flim_low = list(map(int, flim_low_var.get().split(',')))
+            if len(flim_low) != 2 or flim_low[0] >= flim_low[1]:
+                raise ValueError("Invalid frequency range")
+            print(f"Custom anthrophony range: {flim_low[0]}-{flim_low[1]} Hz")
+        except:
+            messagebox.showerror("Error", "Invalid anthrophony range. Use format: min,max (e.g., 0,1000)")
+            return
+    
+    if flim_mid_var.get().strip():
+        try:
+            flim_mid = list(map(int, flim_mid_var.get().split(',')))
+            if len(flim_mid) != 2 or flim_mid[0] >= flim_mid[1]:
+                raise ValueError("Invalid frequency range")
+            print(f"Custom biophony range: {flim_mid[0]}-{flim_mid[1]} Hz")
+        except:
+            messagebox.showerror("Error", "Invalid biophony range. Use format: min,max (e.g., 1000,8000)")
+            return
+    
+    if sensitivity_var.get().strip():
+        try:
+            sensitivity = float(sensitivity_var.get())
+            print(f"Custom sensitivity: {sensitivity}")
+        except:
+            messagebox.showerror("Error", "Invalid sensitivity value. Must be a number.")
+            return
+    
+    if gain_var.get().strip():
+        try:
+            gain = float(gain_var.get())
+            print(f"Custom gain: {gain}")
+        except:
+            messagebox.showerror("Error", "Invalid gain value. Must be a number.")
+            return
 
     # Find audio files
     print("\nSearching for WAV files...")
@@ -204,8 +329,9 @@ def run_analysis():
             
             try:
                 wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                S = -185.5
-                G = 20
+                # Use the parameters from GUI (or defaults)
+                S = sensitivity
+                G = gain
                 
                 total_samples = len(wave)
                 samples_per_interval = int(fs * time_interval)
@@ -252,8 +378,8 @@ def run_analysis():
                         Sxx_power=Sxx_power,
                         tn=tn,
                         fn=fn,
-                        flim_low=[0, 1500],
-                        flim_mid=[1500, 8000],
+                        flim_low=flim_low,
+                        flim_mid=flim_mid,
                         flim_hi=[8000, 40000],
                         gain=G,
                         sensitivity=S,
@@ -263,6 +389,14 @@ def run_analysis():
                         mask_param2=0.5,
                         display=False
                     )
+                    
+                    # Calculate marine-specific indices if custom frequency bands are provided
+                    if flim_low_var.get().strip() or flim_mid_var.get().strip():
+                        marine_indices = calculate_marine_indices(
+                            Sxx_power, fn, flim_low, flim_mid, S, G
+                        )
+                        # Add marine indices to the spectral indices dictionary
+                        spectral_indices.update(marine_indices)
                     
                     indices_df_per_bin = pd.concat([spectral_indices_per_bin], axis=1)
                     indices_df_per_bin.insert(0, 'Filename', filename)
@@ -288,8 +422,9 @@ def run_analysis():
             
             try:
                 wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                S = -185.5
-                G = 20
+                # Use the parameters from GUI (or defaults)
+                S = sensitivity
+                G = gain
                 
                 Sxx_power, tn, fn, ext = sound.spectrogram(
                     x=wave,
@@ -317,8 +452,8 @@ def run_analysis():
                     Sxx_power=Sxx_power,
                     tn=tn,
                     fn=fn,
-                    flim_low=[0, 1500],
-                    flim_mid=[1500, 8000],
+                    flim_low=flim_low,
+                    flim_mid=flim_mid,
                     flim_hi=[8000, 40000],
                     gain=G,
                     sensitivity=S,
@@ -328,6 +463,14 @@ def run_analysis():
                     mask_param2=0.5,
                     display=False
                 )
+                
+                # Calculate marine-specific indices if custom frequency bands are provided
+                if flim_low_var.get().strip() or flim_mid_var.get().strip():
+                    marine_indices = calculate_marine_indices(
+                        Sxx_power, fn, flim_low, flim_mid, S, G
+                    )
+                    # Add marine indices to the spectral indices dictionary
+                    spectral_indices.update(marine_indices)
                 
                 indices_df_per_bin = pd.concat([spectral_indices_per_bin], axis=1)
                 indices_df_per_bin.insert(0, 'Filename', filename)
@@ -567,7 +710,7 @@ def parse_date_and_filename_from_filename(filename):
 # Create GUI
 root = Tk()
 root.title("Scikit-Maad Acoustic Indices (Phase 1)")
-root.geometry('608x500')
+root.geometry('700x700')  # Increased height for new controls
 root.configure(bg='navy')
 
 # Title
@@ -601,7 +744,41 @@ time_interval_var = StringVar()
 Label(root, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=4, columnspan=2, padx=5, pady=5)
 Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=5, column=3, columnspan=1, padx=5, pady=5)
 
+# Separator line
+Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=6, column=1, columnspan=4, pady=10)
+
+# Frequency Band Controls (Optional - for marine acoustics)
+Label(root, text="Marine Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
+
+# Anthrophony frequency range
+flim_low_var = StringVar()
+Label(root, text="Anthrophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=8, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=flim_low_var, font=("Arial", 12), width=15).grid(row=8, column=2, padx=10, pady=5)
+Label(root, text="e.g., 0,1000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=8, column=3, padx=5, pady=5, sticky='w')
+flim_low_var.set("")  # Empty default - will use hardcoded values if not specified
+
+# Biophony frequency range  
+flim_mid_var = StringVar()
+Label(root, text="Biophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=9, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=flim_mid_var, font=("Arial", 12), width=15).grid(row=9, column=2, padx=10, pady=5)
+Label(root, text="e.g., 1000,8000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=9, column=3, padx=5, pady=5, sticky='w')
+flim_mid_var.set("")  # Empty default
+
+# Sensitivity
+sensitivity_var = StringVar()
+Label(root, text="Sensitivity (S):", font=("Arial", 14), bg="navy", fg="white").grid(row=10, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=sensitivity_var, font=("Arial", 12), width=15).grid(row=10, column=2, padx=10, pady=5)
+Label(root, text="default: -169.4", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=10, column=3, padx=5, pady=5, sticky='w')
+sensitivity_var.set("")  # Empty default
+
+# Gain
+gain_var = StringVar()
+Label(root, text="Gain (G):", font=("Arial", 14), bg="navy", fg="white").grid(row=11, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=gain_var, font=("Arial", 12), width=15).grid(row=11, column=2, padx=10, pady=5)
+Label(root, text="default: 0", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=11, column=3, padx=5, pady=5, sticky='w')
+gain_var.set("")  # Empty default
+
 # Run Button
-Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=8, column=1, columnspan=4, padx=10, pady=20)
+Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=12, column=1, columnspan=4, padx=10, pady=20)
 
 root.mainloop()
