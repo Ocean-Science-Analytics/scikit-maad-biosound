@@ -20,18 +20,22 @@
 
 ### NOTE FOR THE USER: To adjust the six different indices displayed in the 'individual features plot', see 'indice_one - indice_six' below the temporal features near the top
 
+# Set matplotlib to non-interactive backend to suppress show() warnings
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
 from maad import sound, features
 from maad.util import date_parser, plot_correlation_map, plot_features_map, plot_features, false_Color_Spectro
-from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox, Radiobutton
+from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox, Radiobutton, Canvas, Scrollbar
 from tkinter import ttk  # For progress bar
 import datetime
 import traceback
 import time
 from multiprocessing import Pool, cpu_count
+import multiprocessing
 from functools import partial
 import sys
 import os
@@ -39,6 +43,7 @@ import os
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from utils.run_metadata import create_run_metadata
+from gui.debug_config import debug_print
 
 # Define spectral and temporal features
 SPECTRAL_FEATURES=['MEANf','VARf','SKEWf','KURTf','NBPEAKS','LEQf',
@@ -179,7 +184,7 @@ def process_single_file(filename_args):
         # Process based on mode
         results = []
         
-        if mode == "20min":  # Manual time intervals
+        if mode in ["manual", "hourly"]:  # Time-based segmentation
             total_samples = len(wave)
             samples_per_interval = int(fs * time_interval)
             
@@ -302,15 +307,48 @@ def process_files_parallel(file_paths, params):
     Returns:
         list: Processing results for each file
     """
+    debug_print(f"[DEBUG] Starting parallel processing with {len(file_paths)} files")
+    
+    # Check if we're on macOS and running from a GUI
+    if sys.platform == 'darwin':
+        debug_print("[DEBUG] Running on macOS - checking multiprocessing start method")
+        try:
+            if multiprocessing.get_start_method() != 'spawn':
+                multiprocessing.set_start_method('spawn', force=True)
+                debug_print("[DEBUG] Set multiprocessing method to 'spawn'")
+        except RuntimeError:
+            debug_print("[DEBUG] Start method already set, continuing...")
+    
     num_workers = min(cpu_count() - 1, 4)  # Leave one core free, max 4 workers
+    debug_print(f"[DEBUG] Using {num_workers} worker processes")
     
     # Prepare arguments for parallel processing
     file_args = [(filepath, params) for filepath in file_paths]
+    debug_print(f"[DEBUG] Prepared {len(file_args)} file arguments")
     
     # Process files in parallel
-    with Pool(num_workers) as pool:
-        results = pool.map(process_single_file, file_args)
+    debug_print("[DEBUG] Creating process pool...")
+    try:
+        # Use a timeout to prevent indefinite hanging
+        with Pool(num_workers) as pool:
+            debug_print("[DEBUG] Pool created, starting map operation...")
+            # Import standalone processor to avoid GUI import issues
+            from processing.standalone_processor import process_single_file_standalone
+            
+            # Add timeout to prevent hanging
+            async_result = pool.map_async(process_single_file_standalone, file_args)
+            results = async_result.get(timeout=30)  # 30 second timeout for testing
+            debug_print(f"[DEBUG] Map operation completed, got {len(results)} results")
+    except multiprocessing.TimeoutError:
+        debug_print("[DEBUG] Parallel processing timed out after 30 seconds")
+        debug_print("[DEBUG] Falling back to sequential processing...")
+        return process_files_sequential(file_paths, params)
+    except Exception as e:
+        debug_print(f"[DEBUG] Exception in parallel processing: {e}")
+        debug_print("[DEBUG] Falling back to sequential processing...")
+        return process_files_sequential(file_paths, params)
     
+    debug_print("[DEBUG] Parallel processing completed successfully")
     return results
 
 def process_files_sequential(file_paths, params):
@@ -340,21 +378,34 @@ def convert_results_to_dataframes(processing_results, filename_list, date_list, 
     # Create filename to date mapping
     filename_to_date = dict(zip(filename_list, date_list))
     
-    for result in processing_results:
+    for i, result in enumerate(processing_results):
         if result is None:
+            debug_print(f"[DEBUG] Result {i} is None, skipping")
             continue
             
+        debug_print(f"[DEBUG] Processing result {i}: filename={result.get('filename', 'unknown')}")
         filename = os.path.basename(result['filename'])
         parsed_date = result['parsed_date']
         
-        for segment_result in result['results']:
+        debug_print(f"[DEBUG] Result has {len(result['results'])} segments")
+        for j, segment_result in enumerate(result['results']):
             if segment_result is None:
+                debug_print(f"[DEBUG] Segment {j} is None, skipping")
                 continue
-                
-            # Add main indices
+            
+            debug_print(f"[DEBUG] Processing segment {j}, indices type: {type(segment_result.get('indices'))}")
+            
+            # Add main indices with proper column ordering
             indices_row = segment_result['indices'].copy()
-            indices_row['Date'] = parsed_date
-            result_df = pd.concat([result_df, pd.DataFrame([indices_row])], ignore_index=True)
+            
+            # Create ordered dictionary with Date and Filename first
+            ordered_row = {
+                'Date': parsed_date,
+                'Filename': filename,
+                **{k: v for k, v in indices_row.items() if k != 'Filename'}  # Add all other indices, excluding any existing Filename
+            }
+            
+            result_df = pd.concat([result_df, pd.DataFrame([ordered_row])], ignore_index=True)
             
             # Add per-bin indices
             if 'indices_per_bin' in segment_result:
@@ -427,18 +478,24 @@ def run_analysis():
     show_progress("Starting analysis...", 0)
     
     # Start metadata tracking
+    # Prepare metadata values (don't include placeholder text)
+    flim_low_for_metadata = flim_low_var.get() if not flim_low_placeholder[0] else ""
+    flim_mid_for_metadata = flim_mid_var.get() if not flim_mid_placeholder[0] else ""
+    sensitivity_for_metadata = sensitivity_var.get() if not sensitivity_placeholder[0] else ""
+    gain_for_metadata = gain_var.get() if not gain_placeholder[0] else ""
+    
     run_metadata.start_run(
         input_folder=input_folder_var.get(),
         output_folder=output_folder_var.get(),
         run_identifier=run_identifier_var.get().strip(),
         time_scale=time_scale_var.get(),
         time_interval=time_interval_var.get(),
-        flim_low_str=flim_low_var.get(),
-        flim_mid_str=flim_mid_var.get(),
-        sensitivity_str=sensitivity_var.get(),
-        gain_str=gain_var.get(),
+        flim_low_str=flim_low_for_metadata,
+        flim_mid_str=flim_mid_for_metadata,
+        sensitivity_str=sensitivity_for_metadata,
+        gain_str=gain_for_metadata,
         parallel_enabled=parallel_var.get(),
-        compare_performance=compare_performance_var.get()
+        compare_performance=False
     )
     
     # Validate time scale selection (radio buttons ensure only one selected)
@@ -463,15 +520,18 @@ def run_analysis():
         messagebox.showerror("Error", f"Input folder does not exist:\n{input_folder}")
         return
     
-    # Determine mode
+    # Determine mode and set time intervals
     if time_scale == "hourly":
-        mode = "24h"
-        print("Time scale: Hourly")
+        mode = "hourly"
+        time_interval = 3600  # 60 minutes = 3600 seconds
+        print("Time scale: Hourly (60-minute segments)")
+        print(f"Time interval: {time_interval} seconds")
     elif time_scale == "dataset":
-        mode = "30min"
-        print("Time scale: Dataset")
+        mode = "dataset" 
+        time_interval = 0  # Process entire file duration
+        print("Time scale: Dataset (entire file duration)")
     elif time_scale == "manual":
-        mode = "20min"
+        mode = "manual"
         print("Time scale: Manual")
         try:
             time_interval = int(time_interval_var.get())
@@ -481,44 +541,48 @@ def run_analysis():
             return
     
     # Parse optional marine acoustic parameters
-    # Use defaults if not specified
-    flim_low = [0, 1500]  # Default anthrophony range
-    flim_mid = [1500, 8000]  # Default biophony range
-    sensitivity = -35.0  # Default sensitivity
-    gain = 0.0  # Default gain
+    # Use scikit-maad defaults if not specified
+    flim_low = [0, 1000]  # scikit-maad default anthrophony range
+    flim_mid = [1000, 10000]  # scikit-maad default biophony range  
+    sensitivity = -35.0  # scikit-maad default sensitivity
+    gain = 0.0  # Default gain (no scikit-maad default found, using 0)
     
-    # Check if user provided custom frequency bands
-    if flim_low_var.get().strip():
+    # Check if user provided custom frequency bands (ignore placeholder text)
+    flim_low_input = flim_low_var.get().strip()
+    if flim_low_input and not flim_low_placeholder[0]:  # User provided actual input
         try:
-            flim_low = list(map(int, flim_low_var.get().split(',')))
+            flim_low = list(map(int, flim_low_input.split(',')))
             if len(flim_low) != 2 or flim_low[0] >= flim_low[1]:
                 raise ValueError("Invalid frequency range")
             print(f"Custom anthrophony range: {flim_low[0]}-{flim_low[1]} Hz")
         except:
-            messagebox.showerror("Error", "Invalid anthrophony range. Use format: min,max (e.g., 0,1000)")
+            messagebox.showerror("Error", "Invalid anthrophony range. Use format: min,max (e.g., 0,1500)")
             return
     
-    if flim_mid_var.get().strip():
+    flim_mid_input = flim_mid_var.get().strip()
+    if flim_mid_input and not flim_mid_placeholder[0]:  # User provided actual input
         try:
-            flim_mid = list(map(int, flim_mid_var.get().split(',')))
+            flim_mid = list(map(int, flim_mid_input.split(',')))
             if len(flim_mid) != 2 or flim_mid[0] >= flim_mid[1]:
                 raise ValueError("Invalid frequency range")
             print(f"Custom biophony range: {flim_mid[0]}-{flim_mid[1]} Hz")
         except:
-            messagebox.showerror("Error", "Invalid biophony range. Use format: min,max (e.g., 1000,8000)")
+            messagebox.showerror("Error", "Invalid biophony range. Use format: min,max (e.g., 1500,8000)")
             return
     
-    if sensitivity_var.get().strip():
+    sensitivity_input = sensitivity_var.get().strip()
+    if sensitivity_input and not sensitivity_placeholder[0]:  # User provided actual input
         try:
-            sensitivity = float(sensitivity_var.get())
+            sensitivity = float(sensitivity_input)
             print(f"Custom sensitivity: {sensitivity}")
         except:
             messagebox.showerror("Error", "Invalid sensitivity value. Must be a number.")
             return
     
-    if gain_var.get().strip():
+    gain_input = gain_var.get().strip()
+    if gain_input and not gain_placeholder[0]:  # User provided actual input
         try:
-            gain = float(gain_var.get())
+            gain = float(gain_input)
             print(f"Custom gain: {gain}")
         except:
             messagebox.showerror("Error", "Invalid gain value. Must be a number.")
@@ -570,13 +634,14 @@ def run_analysis():
     run_metadata.add_processing_info(
         files_found=len(filename_list),
         processing_mode="parallel" if parallel_var.get() else "sequential",
-        compare_performance_enabled=compare_performance_var.get()
+        compare_performance_enabled=False
     )
     
     # Performance settings
     show_progress("Configuring processing options...", 30)
     use_parallel = parallel_var.get()
-    compare_performance = compare_performance_var.get()
+    # Performance comparison removed from GUI
+    compare_performance = False
     
     if compare_performance:
         print("\n=== PERFORMANCE COMPARISON MODE ===")
@@ -595,12 +660,12 @@ def run_analysis():
     # Prepare parameters for processing
     processing_params = {
         'mode': mode,
-        'time_interval': time_interval if mode == "20min" else 0,
+        'time_interval': time_interval,
         'flim_low': flim_low,
         'flim_mid': flim_mid,
         'sensitivity': sensitivity,
         'gain': gain,
-        'calculate_marine': flim_low_var.get().strip() or flim_mid_var.get().strip()
+        'calculate_marine': (flim_low_var.get().strip() and not flim_low_placeholder[0]) or (flim_mid_var.get().strip() and not flim_mid_placeholder[0])
     }
     
     # Create full file paths
@@ -724,7 +789,9 @@ def run_analysis():
         return
     
     # Process results into DataFrames (replacing the old processing logic)
+    debug_print(f"[DEBUG] Converting {len(processing_results)} results to DataFrames...")
     result_df, result_df_per_bin = convert_results_to_dataframes(processing_results, filename_list, date_list, mode)
+    debug_print(f"[DEBUG] Conversion complete. result_df shape: {result_df.shape}")
     
     # Skip the old processing logic and go directly to plotting
     if False:  # This disables the old processing code below
@@ -821,18 +888,28 @@ def run_analysis():
                 print(f"    ERROR: {error_msg}")
                 errors.append(error_msg)
     
-    elif time_scale == "hourly" or time_scale == "dataset":
+    elif False and (time_scale == "hourly" or time_scale == "dataset"):  # Disable old processing code
         # Hourly or Dataset mode
         for i, filename in enumerate(filename_list, 1):
             print(f"  Processing file {i}/{len(filename_list)}: {filename}")
+            # Update progress for each file
+            progress_percent = 40 + (50 * i / len(filename_list))  # 40-90% range for file processing
+            show_progress(f"Processing file {i}/{len(filename_list)}: {filename[:20]}...", progress_percent)
             fullfilename = os.path.join(input_folder, filename)
             
             try:
+                file_start_time = time.time()
                 wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
+                load_time = time.time() - file_start_time
+                print(f"    Loaded in {load_time:.1f}s")
+                
                 # Use the parameters from GUI (or defaults)
                 S = sensitivity
                 G = gain
                 
+                # Time spectrogram calculation
+                print("    Starting spectrogram calculation...")
+                spec_start_time = time.time()
                 Sxx_power, tn, fn, ext = sound.spectrogram(
                     x=wave,
                     fs=fs,
@@ -843,7 +920,12 @@ def run_analysis():
                     display=False,
                     savefig=None
                 )
+                print("    Spectrogram calculation completed!")
+                spec_time = time.time() - spec_start_time
+                print(f"    Spectrogram calculated in {spec_time:.1f}s")
                 
+                # Time temporal indices calculation
+                temporal_start_time = time.time()
                 temporal_indices = features.all_temporal_alpha_indices(
                     s=wave,
                     fs=fs,
@@ -854,7 +936,11 @@ def run_analysis():
                     verbose=False,
                     display=False
                 )
+                temporal_time = time.time() - temporal_start_time
+                print(f"    Temporal indices calculated in {temporal_time:.1f}s")
                 
+                # Time spectral indices calculation  
+                spectral_start_time = time.time()
                 spectral_indices, spectral_indices_per_bin = features.all_spectral_alpha_indices(
                     Sxx_power=Sxx_power,
                     tn=tn,
@@ -870,15 +956,22 @@ def run_analysis():
                     mask_param2=0.5,
                     display=False
                 )
+                spectral_time = time.time() - spectral_start_time
+                print(f"    Spectral indices calculated in {spectral_time:.1f}s")
                 
                 # Calculate marine-specific indices if custom frequency bands are provided
                 if flim_low_var.get().strip() or flim_mid_var.get().strip():
+                    marine_start_time = time.time()
                     marine_indices = calculate_marine_indices(
                         Sxx_power, fn, flim_low, flim_mid, S, G
                     )
                     # Add marine indices to the spectral indices dictionary
                     spectral_indices.update(marine_indices)
+                    marine_time = time.time() - marine_start_time
+                    print(f"    Marine indices calculated in {marine_time:.1f}s")
                 
+                # Time data frame operations
+                df_start_time = time.time()
                 indices_df_per_bin = pd.concat([spectral_indices_per_bin], axis=1)
                 indices_df_per_bin.insert(0, 'Filename', filename)
                 result_df_per_bin = pd.concat([result_df_per_bin, indices_df_per_bin], ignore_index=True)
@@ -886,6 +979,11 @@ def run_analysis():
                 indices_df = pd.concat([temporal_indices, spectral_indices], axis=1)
                 indices_df.insert(0, 'Filename', filename)
                 result_df = pd.concat([result_df, indices_df], ignore_index=True)
+                df_time = time.time() - df_start_time
+                
+                # Calculate total time for this file
+                total_file_time = time.time() - file_start_time
+                print(f"    Data processing in {df_time:.1f}s | Total: {total_file_time:.1f}s")
                 
                 files_processed += 1
                 
@@ -898,12 +996,26 @@ def run_analysis():
     print(f"\nFile processing complete: {files_processed} succeeded, {files_failed} failed")
     
     # Check if we have any results
+    debug_print(f"[DEBUG] Checking results: result_df.empty = {result_df.empty}")
     if result_df.empty:
+        debug_print("[DEBUG] ERROR: result_df is empty!")
         messagebox.showerror("Error", "No audio files could be processed successfully.\n\nCheck the console for error details.")
         return
+    else:
+        debug_print(f"[DEBUG] result_df has {len(result_df)} rows and {len(result_df.columns)} columns")
     
     # Merge dataframes
-    full_df = df.merge(result_df, how='inner', on='Filename')
+    print(f"  Original df columns: {list(df.columns)}")
+    print(f"  Result df columns: {list(result_df.columns)}")
+    print(f"  Result df shape: {result_df.shape}")
+    
+    # Since result_df already has Date and other info, use it directly
+    if 'Date' in result_df.columns:
+        full_df = result_df.copy()
+        print("  Using result_df directly (has Date column)")
+    else:
+        full_df = df.merge(result_df, how='inner', on='Filename')
+        print("  Merged df with result_df")
     
     # Adjust dates for manual time interval mode
     if time_scale == "manual":
@@ -1075,15 +1187,27 @@ def run_analysis():
     # 3. False color spectrogram
     try:
         print("  Creating false color spectrogram...")
-        fcs, triplet = false_Color_Spectro(
-            df=result_df_per_bin,
-            indices=['KURTt_per_bin', 'EVNspCount_per_bin', 'MEANt_per_bin'],
-            reverseLUT=False,
-            unit='days',
-            permut=False,
-            display=False,
-            figsize=(16, 14)
-        )
+        print(f"    Per-bin DataFrame shape: {result_df_per_bin.shape}")
+        print(f"    Per-bin DataFrame columns: {list(result_df_per_bin.columns)}")
+        
+        if result_df_per_bin.empty:
+            print("    WARNING: Per-bin DataFrame is empty, cannot create false color spectrogram")
+            # Create placeholder figure
+            fig, ax = plt.subplots(1, 1, figsize=(16, 14))
+            ax.text(0.5, 0.5, "False Color Spectrogram\n(No per-bin data available)", 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=16, color='gray')
+            ax.set_title("False Color Spectrogram - No Data")
+        else:
+            fcs, triplet = false_Color_Spectro(
+                df=result_df_per_bin,
+                indices=['KURTt_per_bin', 'EVNspCount_per_bin', 'MEANt_per_bin'],
+                reverseLUT=False,
+                unit='days',
+                permut=False,
+                display=False,
+                figsize=(16, 14)
+            )
         spectro_filename = f"{run_id}_false_color_spectrograms.png" if run_id else "false_color_spectrograms.png"
         plt.savefig(os.path.join(output_figures_path, spectro_filename))
         print(f"    Saved: {spectro_filename}")
@@ -1150,7 +1274,8 @@ def run_analysis():
 
 def show_progress(message, percent=None):
     """Show progress bar with message and optional percentage"""
-    progress_frame.grid()  # Show the progress bar
+    progress_label.pack()  # Show the label
+    progress_bar.pack(pady=5)  # Show the progress bar
     progress_label.config(text=message)
     if percent is not None:
         progress_bar['value'] = percent
@@ -1158,7 +1283,8 @@ def show_progress(message, percent=None):
 
 def hide_progress():
     """Hide the progress bar"""
-    progress_frame.grid_remove()
+    progress_label.pack_forget()
+    progress_bar.pack_forget()
     root.update()
 
 def select_folder(var):
@@ -1217,111 +1343,170 @@ def parse_date_and_filename_from_filename(filename):
         print(f"    Could not parse '{os.path.basename(filename)}': {str(e)}")
         return None, None
 
-# Create GUI
+# Create GUI with scrollable frame
 root = Tk()
-root.title("Scikit-Maad Acoustic Indices (Phase 1)")
-root.geometry('700x800')  # Increased height for performance controls
+root.title("Scikit-Maad Acoustic Indices")
+root.geometry('700x850')  # Increased height to accommodate progress bar space
 root.configure(bg='navy')
+root.minsize(650, 600)  # Minimum window size to prevent squishing
+
+# Create main canvas and scrollbar for scrollable content
+main_canvas = Canvas(root, bg='navy')
+scrollbar = Scrollbar(root, orient="vertical", command=main_canvas.yview)
+scrollable_frame = Frame(main_canvas, bg='navy')
+
+# Configure the scrollable frame
+scrollable_frame.bind(
+    "<Configure>",
+    lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+)
+
+# Create window in canvas
+main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+main_canvas.configure(yscrollcommand=scrollbar.set)
+
+# Pack canvas and scrollbar
+main_canvas.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
+
+# Bind mousewheel to canvas for smooth scrolling
+def on_mousewheel(event):
+    main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+main_canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+# Use scrollable_frame instead of root for all GUI elements below
 
 # Title
-title_label = Label(root, text="Acoustic Indices", font=("Arial", 24, "bold"), bg="navy", fg="white")
+title_label = Label(scrollable_frame, text="Acoustic Indices", font=("Arial", 24, "bold"), bg="navy", fg="white")
 title_label.grid(row=0, column=1, padx=10, pady=20, columnspan=4)
 
 # Input Folder
 input_folder_var = StringVar()
-Label(root, text="Input Folder:", font=("Arial", 16), bg="navy", fg="white").grid(row=1, column=1, padx=10, pady=10)
-Entry(root, textvariable=input_folder_var, font=("Arial", 14)).grid(row=1, column=2, padx=10, pady=10)
-Button(root, text="Browse", font=("Arial", 16), command=lambda: select_folder(input_folder_var)).grid(row=1, column=3, padx=10, pady=10)
+Label(scrollable_frame, text="Input Folder:", font=("Arial", 16), bg="navy", fg="white").grid(row=1, column=1, padx=10, pady=10)
+Entry(scrollable_frame, textvariable=input_folder_var, font=("Arial", 14)).grid(row=1, column=2, padx=10, pady=10)
+Button(scrollable_frame, text="Browse", font=("Arial", 16), command=lambda: select_folder(input_folder_var)).grid(row=1, column=3, padx=10, pady=10)
 
 # Output Folder
 output_folder_var = StringVar()
-Label(root, text="Output Folder:", font=("Arial", 16), bg="navy", fg="white").grid(row=2, column=1, padx=10, pady=10)
-Entry(root, textvariable=output_folder_var, font=("Arial", 14)).grid(row=2, column=2, padx=10, pady=10)
-Button(root, text="Browse", font=("Arial", 16), command=lambda: select_folder(output_folder_var)).grid(row=2, column=3, padx=10, pady=10)
+Label(scrollable_frame, text="Output Folder:", font=("Arial", 16), bg="navy", fg="white").grid(row=2, column=1, padx=10, pady=10)
+Entry(scrollable_frame, textvariable=output_folder_var, font=("Arial", 14)).grid(row=2, column=2, padx=10, pady=10)
+Button(scrollable_frame, text="Browse", font=("Arial", 16), command=lambda: select_folder(output_folder_var)).grid(row=2, column=3, padx=10, pady=10)
 
 # Run Identifier (optional - for file naming)
 run_identifier_var = StringVar()
-Label(root, text="Run Identifier:", font=("Arial", 16), bg="navy", fg="white").grid(row=3, column=1, padx=10, pady=10)
-identifier_entry = Entry(root, textvariable=run_identifier_var, font=("Arial", 14))
+Label(scrollable_frame, text="Run Identifier:", font=("Arial", 16), bg="navy", fg="white").grid(row=3, column=1, padx=10, pady=10)
+identifier_entry = Entry(scrollable_frame, textvariable=run_identifier_var, font=("Arial", 14))
 identifier_entry.grid(row=3, column=2, padx=10, pady=10)
 # Helpful hint about preventing overwrites
 hint_text = "(optional - prevents overwrites)"
-Label(root, text=hint_text, font=("Arial", 11, "italic"), bg="navy", fg="lightgray").grid(row=3, column=3, padx=10, pady=10, sticky='w')
+Label(scrollable_frame, text=hint_text, font=("Arial", 11, "italic"), bg="navy", fg="lightgray").grid(row=3, column=3, padx=10, pady=10, sticky='w')
 
 # Time Scale Radio Buttons
 time_scale_var = StringVar()
 time_scale_var.set("dataset")  # Default to dataset mode
 
-Label(root, text="Time Scale:", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=1, padx=10, pady=10)
-Radiobutton(root, text="Hourly  ", font=("Arial", 16), variable=time_scale_var, value="hourly", bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10, sticky='w')
-Radiobutton(root, text="Dataset", font=("Arial", 16), variable=time_scale_var, value="dataset", bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=10, pady=10, sticky='w')
-Radiobutton(root, text="Manual ", font=("Arial", 16), variable=time_scale_var, value="manual", bg="navy", fg="white", selectcolor="darkgrey").grid(row=6, column=2, padx=5, pady=5, sticky='w')
+Label(scrollable_frame, text="Time Scale:", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=1, padx=10, pady=10)
+Radiobutton(scrollable_frame, text="Hourly  ", font=("Arial", 16), variable=time_scale_var, value="hourly", bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10, sticky='w')
+Radiobutton(scrollable_frame, text="Dataset", font=("Arial", 16), variable=time_scale_var, value="dataset", bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=10, pady=10, sticky='w')
+Radiobutton(scrollable_frame, text="Manual ", font=("Arial", 16), variable=time_scale_var, value="manual", bg="navy", fg="white", selectcolor="darkgrey").grid(row=6, column=2, padx=5, pady=5, sticky='w')
 
 # Time Interval Input
 time_interval_var = StringVar()
-Label(root, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=6, column=4, columnspan=2, padx=5, pady=5)
-Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=6, column=3, columnspan=1, padx=5, pady=5)
+Label(scrollable_frame, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=6, column=4, columnspan=2, padx=5, pady=5)
+Entry(scrollable_frame, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=6, column=3, columnspan=1, padx=5, pady=5)
 
 # Separator line
-Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=7, column=1, columnspan=4, pady=10)
+Label(scrollable_frame, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=7, column=1, columnspan=4, pady=10)
 
 # Frequency Band Controls (Optional - for marine acoustics)
-Label(root, text="Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
+Label(scrollable_frame, text="Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
+
+# Helper function for placeholder text behavior
+def setup_placeholder(entry_widget, var, placeholder_text, is_placeholder_active):
+    """Setup placeholder text behavior for entry widgets"""
+    def on_focus_in(event):
+        if is_placeholder_active[0]:
+            var.set("")
+            entry_widget.config(fg='black')
+            is_placeholder_active[0] = False
+    
+    def on_focus_out(event):
+        if not var.get().strip():
+            var.set(placeholder_text)
+            entry_widget.config(fg='gray')
+            is_placeholder_active[0] = True
+    
+    entry_widget.bind("<FocusIn>", on_focus_in)
+    entry_widget.bind("<FocusOut>", on_focus_out)
+    
+    # Set initial state
+    var.set(placeholder_text)
+    entry_widget.config(fg='gray')
+    is_placeholder_active[0] = True
 
 # Anthrophony frequency range
 flim_low_var = StringVar()
-Label(root, text="Anthrophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=8, column=1, padx=10, pady=5, sticky='e')
-Entry(root, textvariable=flim_low_var, font=("Arial", 12), width=15).grid(row=8, column=2, padx=10, pady=5)
-Label(root, text="e.g., 0,1000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=8, column=3, padx=5, pady=5, sticky='w')
-flim_low_var.set("")  # Empty default - will use hardcoded values if not specified
+flim_low_placeholder = [True]  # Track if placeholder is active
+Label(scrollable_frame, text="Anthrophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=8, column=1, padx=10, pady=5, sticky='e')
+flim_low_entry = Entry(scrollable_frame, textvariable=flim_low_var, font=("Arial", 12), width=15)
+flim_low_entry.grid(row=8, column=2, padx=10, pady=5)
+Label(scrollable_frame, text="Format: min,max", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=8, column=3, padx=5, pady=5, sticky='w')
+setup_placeholder(flim_low_entry, flim_low_var, "Default: 0,1000", flim_low_placeholder)
 
 # Biophony frequency range  
 flim_mid_var = StringVar()
-Label(root, text="Biophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=9, column=1, padx=10, pady=5, sticky='e')
-Entry(root, textvariable=flim_mid_var, font=("Arial", 12), width=15).grid(row=9, column=2, padx=10, pady=5)
-Label(root, text="e.g., 1000,8000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=9, column=3, padx=5, pady=5, sticky='w')
-flim_mid_var.set("")  # Empty default
+flim_mid_placeholder = [True]  # Track if placeholder is active
+Label(scrollable_frame, text="Biophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=9, column=1, padx=10, pady=5, sticky='e')
+flim_mid_entry = Entry(scrollable_frame, textvariable=flim_mid_var, font=("Arial", 12), width=15)
+flim_mid_entry.grid(row=9, column=2, padx=10, pady=5)
+Label(scrollable_frame, text="Format: min,max", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=9, column=3, padx=5, pady=5, sticky='w')
+setup_placeholder(flim_mid_entry, flim_mid_var, "Default: 1000,10000", flim_mid_placeholder)
 
 # Sensitivity
 sensitivity_var = StringVar()
-Label(root, text="Sensitivity (S):", font=("Arial", 14), bg="navy", fg="white").grid(row=10, column=1, padx=10, pady=5, sticky='e')
-Entry(root, textvariable=sensitivity_var, font=("Arial", 12), width=15).grid(row=10, column=2, padx=10, pady=5)
-Label(root, text="default: -169.4", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=10, column=3, padx=5, pady=5, sticky='w')
-sensitivity_var.set("")  # Empty default
+sensitivity_placeholder = [True]  # Track if placeholder is active
+Label(scrollable_frame, text="Sensitivity (S):", font=("Arial", 14), bg="navy", fg="white").grid(row=10, column=1, padx=10, pady=5, sticky='e')
+sensitivity_entry = Entry(scrollable_frame, textvariable=sensitivity_var, font=("Arial", 12), width=15)
+sensitivity_entry.grid(row=10, column=2, padx=10, pady=5)
+Label(scrollable_frame, text="Format: number", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=10, column=3, padx=5, pady=5, sticky='w')
+setup_placeholder(sensitivity_entry, sensitivity_var, "Default: -35.0", sensitivity_placeholder)
 
 # Gain
 gain_var = StringVar()
-Label(root, text="Gain (G):", font=("Arial", 14), bg="navy", fg="white").grid(row=11, column=1, padx=10, pady=5, sticky='e')
-Entry(root, textvariable=gain_var, font=("Arial", 12), width=15).grid(row=11, column=2, padx=10, pady=5)
-Label(root, text="default: 0", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=11, column=3, padx=5, pady=5, sticky='w')
-gain_var.set("")  # Empty default
+gain_placeholder = [True]  # Track if placeholder is active
+Label(scrollable_frame, text="Gain (G):", font=("Arial", 14), bg="navy", fg="white").grid(row=11, column=1, padx=10, pady=5, sticky='e')
+gain_entry = Entry(scrollable_frame, textvariable=gain_var, font=("Arial", 12), width=15)
+gain_entry.grid(row=11, column=2, padx=10, pady=5)
+Label(scrollable_frame, text="Format: number", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=11, column=3, padx=5, pady=5, sticky='w')
+setup_placeholder(gain_entry, gain_var, "Default: 0.0", gain_placeholder)
 
 # Performance Settings
-Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=13, column=1, columnspan=4, pady=10)
-Label(root, text="Performance Settings:", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=14, column=1, columnspan=3, padx=10, pady=10)
+Label(scrollable_frame, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=13, column=1, columnspan=4, pady=10)
+Label(scrollable_frame, text="Performance Settings:", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=14, column=1, columnspan=3, padx=10, pady=10)
 
 # Parallel processing checkbox
 parallel_var = BooleanVar()
 parallel_var.set(True)  # Default to enabled
-Checkbutton(root, text="Enable Parallel Processing (faster)", font=("Arial", 14), variable=parallel_var, 
+Checkbutton(scrollable_frame, text="Enable Parallel Processing (faster)", font=("Arial", 14), variable=parallel_var, 
            bg="navy", fg="white", selectcolor="darkgrey").grid(row=15, column=1, columnspan=2, padx=10, pady=5, sticky='w')
 
-# Performance comparison checkbox
-compare_performance_var = BooleanVar()
-compare_performance_var.set(False)  # Default to disabled
-Checkbutton(root, text="Compare Performance (benchmark mode)", font=("Arial", 14), variable=compare_performance_var,
-           bg="navy", fg="white", selectcolor="darkgrey").grid(row=16, column=1, columnspan=2, padx=10, pady=5, sticky='w')
+# Performance comparison removed from GUI - available via terminal only
 
-# Progress Bar (initially hidden)
-progress_frame = Frame(root, bg="navy")
-progress_frame.grid(row=17, column=1, columnspan=4, padx=10, pady=10, sticky='ew')
+# Run Button
+Button(scrollable_frame, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=17, column=1, columnspan=4, padx=10, pady=20)
+
+# Reserved space for Progress Bar (always takes up space, but hidden when not in use)
+progress_frame = Frame(scrollable_frame, bg="navy", height=60)  # Fixed height to reserve space
+progress_frame.grid(row=18, column=1, columnspan=4, padx=10, pady=10, sticky='ew')
+progress_frame.grid_propagate(False)  # Prevent frame from shrinking when empty
+
 progress_label = Label(progress_frame, text="", font=("Arial", 12), bg="navy", fg="white")
 progress_label.pack()
 progress_bar = ttk.Progressbar(progress_frame, mode='determinate', length=400)
 progress_bar.pack(pady=5)
-progress_frame.grid_remove()  # Hide initially
 
-# Run Button
-Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=18, column=1, columnspan=4, padx=10, pady=20)
+# Initially hide the content but keep the space
+progress_label.pack_forget()
+progress_bar.pack_forget()
 
 root.mainloop()

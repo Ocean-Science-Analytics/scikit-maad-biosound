@@ -38,8 +38,8 @@ The files will contain realistic marine acoustic scenarios:
                        help="Output directory for WAV files (default: test_wav_files)")
     parser.add_argument("--num-files", "-n", type=int, default=5,
                        help="Number of files to create (default: 5, max: 5)")
-    parser.add_argument("--duration", "-d", type=int, default=30,
-                       help="Duration of each file in seconds (default: 30)")
+    parser.add_argument("--duration", "-d", type=int, default=10,
+                       help="Duration of each file in seconds (default: 10)")
     
     args = parser.parse_args()
     

@@ -101,8 +101,7 @@ class RunMetadata:
     def _generate_run_id(self):
         """Generate unique run ID"""
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        user = getpass.getuser()[:8]  # First 8 chars of username
-        return f"run_{timestamp}_{user}"
+        return f"run_{timestamp}"
         
     def _get_file_size(self, filepath):
         """Get file size in bytes, return 0 if file doesn't exist"""
@@ -117,9 +116,14 @@ class RunMetadata:
             # Create output folder if it doesn't exist
             os.makedirs(self.output_folder, exist_ok=True)
             
-            # Generate filename
-            run_id = self.metadata['run_info'].get('run_id', 'unknown')
-            filename = f"run_metadata_{run_id}.json"
+            # Generate filename using run_identifier and timestamp
+            run_identifier = self.metadata['input_settings'].get('run_identifier', '').strip()
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            if run_identifier:
+                filename = f"metadata_{run_identifier}_{timestamp}.json"
+            else:
+                filename = f"metadata_{timestamp}.json"
             filepath = os.path.join(self.output_folder, filename)
             
             # Save metadata
@@ -169,7 +173,7 @@ class RunMetadata:
                 f.write(f"Output Folder: {input_settings.get('output_folder', 'N/A')}\n")
                 f.write(f"Processing Mode: {input_settings.get('mode', 'N/A')}\n")
                 f.write(f"Frequency Bands: Anthro {input_settings.get('flim_low', 'N/A')}, Bio {input_settings.get('flim_mid', 'N/A')}\n")
-                f.write(f"Parallel Processing: {'Yes' if input_settings.get('use_parallel') else 'No'}\n")
+                f.write(f"Parallel Processing: {'Yes' if input_settings.get('parallel_enabled') else 'No'}\n")
                 if input_settings.get('marine_indices_enabled'):
                     f.write("Marine Indices: Enabled\n")
                 f.write("\n")
