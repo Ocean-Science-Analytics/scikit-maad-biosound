@@ -27,6 +27,7 @@ import os
 from maad import sound, features
 from maad.util import date_parser, plot_correlation_map, plot_features_map, plot_features, false_Color_Spectro
 from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox
+from tkinter import ttk  # For progress bar
 import datetime
 import traceback
 import time
@@ -422,6 +423,9 @@ def run_analysis():
     print("STARTING ACOUSTIC ANALYSIS")
     print("="*60)
     
+    # Show initial progress
+    show_progress("Starting analysis...", 0)
+    
     # Start metadata tracking
     run_metadata.start_run(
         input_folder=input_folder_var.get(),
@@ -441,18 +445,23 @@ def run_analysis():
     
     # Validate time scale selection
     if mode_var_24h.get() and mode_var_30min.get() and mode_var_20min.get():
+        hide_progress()
         messagebox.showerror("Error", "Please select only one time scale option.")
         return
     elif mode_var_24h.get() and mode_var_30min.get():
+        hide_progress()
         messagebox.showerror("Error", "Please select only one time scale option.")
         return
     elif mode_var_24h.get() and mode_var_20min.get():
+        hide_progress()
         messagebox.showerror("Error", "Please select only one time scale option.")
         return
     elif mode_var_30min.get() and mode_var_20min.get():
+        hide_progress()
         messagebox.showerror("Error", "Please select only one time scale option.")
         return
     elif not mode_var_24h.get() and not mode_var_30min.get() and not mode_var_20min.get():
+        hide_progress()
         messagebox.showerror("Error", "Please select one time scale option.")
         return
     
@@ -467,6 +476,7 @@ def run_analysis():
         messagebox.showerror("Error", "Please select an output folder.")
         return
     if not os.path.exists(input_folder):
+        hide_progress()
         messagebox.showerror("Error", f"Input folder does not exist:\n{input_folder}")
         return
     
@@ -541,10 +551,12 @@ def run_analysis():
                 audio_files.append(os.path.join(root, file))
     
     if not audio_files:
+        hide_progress()
         messagebox.showerror("Error", f"No WAV files found in:\n{input_folder}")
         return
     
     print(f"Found {len(audio_files)} WAV files")
+    show_progress(f"Found {len(audio_files)} files, parsing timestamps...", 15)
     
     # Parse filenames
     date_list = []
@@ -579,6 +591,7 @@ def run_analysis():
     )
     
     # Performance settings
+    show_progress("Configuring processing options...", 30)
     use_parallel = parallel_var.get()
     compare_performance = compare_performance_var.get()
     
@@ -586,12 +599,15 @@ def run_analysis():
         print("\n=== PERFORMANCE COMPARISON MODE ===")
         print("Will run analysis both sequentially and in parallel for benchmarking")
         print(f"Testing with {len(filename_list)} files...")
+        show_progress("Performance comparison: running sequential processing...", 35)
     elif use_parallel:
         print(f"\n=== PARALLEL PROCESSING ENABLED ===")
         num_workers = min(cpu_count() - 1, 4)  # Leave one core free, max 4 workers
         print(f"Using {num_workers} worker processes for {len(filename_list)} files")
+        show_progress("Processing files in parallel...", 40)
     else:
         print("\n=== SEQUENTIAL PROCESSING ===")
+        show_progress("Processing files sequentially...", 40)
     
     # Prepare parameters for processing
     processing_params = {
@@ -615,6 +631,7 @@ def run_analysis():
         sequential_time = time.time() - start_time
         
         print(f"\n--- Running Parallel Version ---")
+        show_progress("Performance comparison: running parallel processing...", 60)
         start_time = time.time()
         parallel_results = process_files_parallel(full_file_paths, processing_params)
         parallel_time = time.time() - start_time
@@ -702,6 +719,7 @@ def run_analysis():
     
     # Convert results to DataFrames
     print(f"\nProcessing complete: {files_processed} files processed, {files_failed} files failed")
+    show_progress("Converting results to data tables...", 70)
     
     # Add file information to metadata
     input_files = [os.path.join(input_folder, f) for f in filename_list]
@@ -983,6 +1001,7 @@ def run_analysis():
     
     # Save CSV (this should always work if we got this far)
     print("\nSaving results...")
+    show_progress("Saving data files...", 75)
     try:
         # Use run identifier if provided
         if run_id:
@@ -1029,6 +1048,7 @@ def run_analysis():
     
     # Generate plots with error handling
     print("\nGenerating figures...")
+    show_progress("Creating visualizations...", 85)
     plots_failed = []
     
     # 1. Correlation map
@@ -1113,6 +1133,8 @@ def run_analysis():
                 print(f"    ... and {len(warnings)-3} more")
     
     # Show completion message to user
+    show_progress("Analysis complete!", 100)
+    
     if errors or warnings:
         message = f"Analysis completed with issues:\n\n"
         message += f"✓ Files processed: {files_processed}/{len(filename_list)}\n"
@@ -1139,6 +1161,22 @@ def run_analysis():
         
         # Finalize metadata tracking for successful completion
         run_metadata.finish_run(success=True)
+    
+    # Hide progress bar after completion
+    hide_progress()
+
+def show_progress(message, percent=None):
+    """Show progress bar with message and optional percentage"""
+    progress_frame.grid()  # Show the progress bar
+    progress_label.config(text=message)
+    if percent is not None:
+        progress_bar['value'] = percent
+    root.update()  # Force GUI update
+
+def hide_progress():
+    """Hide the progress bar"""
+    progress_frame.grid_remove()
+    root.update()
 
 def select_folder(var):
     """
@@ -1246,7 +1284,7 @@ Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(ro
 Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=7, column=1, columnspan=4, pady=10)
 
 # Frequency Band Controls (Optional - for marine acoustics)
-Label(root, text="Marine Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
+Label(root, text="Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
 
 # Anthrophony frequency range
 flim_low_var = StringVar()
@@ -1292,7 +1330,16 @@ compare_performance_var.set(False)  # Default to disabled
 Checkbutton(root, text="Compare Performance (benchmark mode)", font=("Arial", 14), variable=compare_performance_var,
            bg="navy", fg="white", selectcolor="darkgrey").grid(row=16, column=1, columnspan=2, padx=10, pady=5, sticky='w')
 
+# Progress Bar (initially hidden)
+progress_frame = Frame(root, bg="navy")
+progress_frame.grid(row=17, column=1, columnspan=4, padx=10, pady=10, sticky='ew')
+progress_label = Label(progress_frame, text="", font=("Arial", 12), bg="navy", fg="white")
+progress_label.pack()
+progress_bar = ttk.Progressbar(progress_frame, mode='determinate', length=400)
+progress_bar.pack(pady=5)
+progress_frame.grid_remove()  # Hide initially
+
 # Run Button
-Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=17, column=1, columnspan=4, padx=10, pady=20)
+Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=18, column=1, columnspan=4, padx=10, pady=20)
 
 root.mainloop()

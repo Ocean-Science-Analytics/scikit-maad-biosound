@@ -150,12 +150,18 @@ That's it! The GUI will open and you can start processing audio files.
 2. **Select folders** in the GUI:
    - **Input Folder**: Directory containing your WAV files
    - **Output Folder**: Where results will be saved
-3. **Choose time scale**:
+3. **Optional: Add Run Identifier** to prevent filename conflicts
+4. **Choose time scale**:
    - **Hourly**: Averages indices over 1-hour periods
    - **Dataset**: Processes entire files as single units  
    - **Manual**: Specify custom time intervals (in seconds)
-4. **Click "Run Analysis"** and wait for completion
-5. **Check your output folder** for results when done
+5. **Optional: Adjust Acoustic Settings** (uses defaults if blank):
+   - **Anthrophony Range**: Frequency range for human noise (default: 0-1500 Hz)
+   - **Biophony Range**: Frequency range for biological sounds (default: 1500-8000 Hz)
+   - **Sensitivity**: Hydrophone sensitivity (default: -35.0 dB)
+   - **Gain**: Recording system gain (default: 0.0 dB)
+6. **Click "Run Analysis"** and monitor progress bar
+7. **Check your output folder** for results when done
 
 ### Input Format
 
