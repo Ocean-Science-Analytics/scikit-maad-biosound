@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scikit-maad-biosound"
+version = "0.1.0"
+description = "Marine acoustic analysis tool using scikit-maad for processing audio files and computing acoustic indices"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["acoustics", "marine", "audio", "scikit-maad", "bioacoustics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "scikit-maad>=1.3.0",
+    "numpy>=1.20.0",
+    "pandas>=1.3.0",
+    "matplotlib>=3.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+scikit-maad-gui = "scikit_maad_biosound.main:main"
+maad-generate-samples = "scikit_maad_biosound.utils.sample_generator:main"
+maad-performance-test = "scikit_maad_biosound.performance_test:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/scikit-maad-biosound"
+Repository = "https://github.com/yourusername/scikit-maad-biosound"
+Issues = "https://github.com/yourusername/scikit-maad-biosound/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "-ra",
+]
+markers = [
+    "integration: marks tests as integration tests",
+    "gui: marks tests that require GUI components",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | archive
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "maad.*",
+    "tkinter.*",
+]
+ignore_missing_imports = true
