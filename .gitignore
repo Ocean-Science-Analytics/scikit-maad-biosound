@@ -33,3 +33,5 @@ Acoustic_Indices.csv
 /.idea
 /performance_report*.json
 /performance_report*.txt
+
+*.wav

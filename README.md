@@ -1,8 +1,46 @@
 # Scikit-MAAD Acoustic Indices GUI
 
-Batch process passive acoustic data using this GUI-based wrapper around scikit-maad that allows users to select input/output folders and calculate acoustic indices at custom durations.
+## Major Update: Frequency band fixes and GUI updates (August 2025)
 
-Built on the [scikit-maad](https://scikit-maad.github.io/) library, this user-friendly graphical tool processes WAV files to extract acoustic indices commonly used in soundscape ecology, biodiversity monitoring, and bioacoustic research.
+This version merges and corrects multiple iterations of the marine acoustics GUI that had diverged across different research groups. The primary fix addresses frequency band calculation errors identified through correspondence with the scikit-maad development team.
+
+### Key Technical Improvements
+
+**1. Corrected Marine Frequency Band Assignments**
+   - Anthrophony (vessel noise): 0-1000 Hz band properly isolated for ship traffic analysis
+   - Biophony (biological sounds): 1000-8000 Hz correctly captures cetacean vocalizations and fish choruses
+
+**2. Parallel Processing Implementation**
+   - Multiprocessing support reduces computation time by factor of 2-4x
+   - Configurable worker processes optimize for available hardware
+   - Performance comparison mode available for benchmarking
+
+**3. Run Metadata Tracking**
+   - Comprehensive logging of analysis parameters, file manifests, and performance metrics
+   - JSON and human-readable summary formats for reproducibility
+   - Automatic versioning of sequential runs in the same output directory
+
+**4. Restructured Output Organization**
+   - Hierarchical folder structure: `data/`, `figures/`, `metadata/`
+   - Metadata includes full parameter sets for method sections
+   - Performance reports when comparison mode enabled
+
+**5. Marine Acoustic Test Data Generator**
+   - Synthetic WAV files with realistic frequency content
+   - Scenarios: vessel transits, dolphin echolocation, fish aggregations
+   - Proper timestamp formatting for GUI compatibility
+
+### Migration Notes
+- Previous workflows remain compatible
+- Launch via `python main.py` (previously direct GUI script)
+- Existing output directories will adopt new structure automatically
+- Archive versions preserved in `archive/` for reference
+
+---
+
+## Overview
+
+A GUI-based tool for batch processing marine passive acoustic data, built on the [scikit-maad](https://scikit-maad.github.io/) library. Designed specifically for underwater recordings, it computes acoustic indices with proper frequency band allocation for distinguishing vessel noise from biological sounds in marine environments.
 
 ## What This Tool Does
 
@@ -42,7 +80,12 @@ Built on the [scikit-maad](https://scikit-maad.github.io/) library, this user-fr
 
 4. **Run the application:**
    ```bash
-   uv run python SciKit_Maad_File_Processing-GUI_Phase1.py
+   python main.py
+   ```
+   
+5. **(Optional) Generate test files:**
+   ```bash
+   python generate_samples.py
    ```
 
 That's it! The GUI will open and you can start processing audio files.
@@ -75,24 +118,39 @@ Examples:
 
 ### Output Files
 
-The tool generates:
-- `Acoustic_Indices.csv` - All computed indices with timestamps
-- `output_figures/` folder containing:
-  - `correlation_map.png` - Index correlation matrix
-  - `individual_features.png` - Time series of 6 key indices
-  - `false_color_spectrograms.png` - False-color spectrogram visualization
+The tool creates an organized folder structure with your results:
+```
+your_output_folder/
+├── data/
+│   └── Acoustic_Indices.csv         # All computed indices with timestamps
+├── figures/
+│   ├── correlation_map.png          # Index correlation matrix
+│   ├── individual_features.png      # Time series of 6 key indices
+│   └── false_color_spectrograms.png # Visual representation of sound patterns
+└── metadata/
+    ├── run_metadata_*.json          # Detailed analysis settings and parameters
+    └── run_metadata_*_summary.txt   # Human-readable summary of your run
+```
+
+**New:** Each analysis run is automatically documented in the metadata folder, making it easy to track what settings were used and reproduce your results.
 
 ## Generating Test Data
 
-For testing or development, you can generate sample WAV files:
+**New Marine Acoustic Test Files:** Generate realistic sample WAV files with marine sounds:
 
 ```bash
-uv run python test_utils/generate_test_wav.py
+python generate_samples.py              # Create 5 sample files (default)
+python generate_samples.py -n 10 -d 60  # Create 10 files, 60 seconds each
 ```
 
-This creates 3 test files (10 seconds each).
+Sample scenarios include:
+- **Quiet ocean** - Minimal activity baseline
+- **Vessel passing** - Ship engine noise with some biological sounds
+- **Dolphin pod** - Echolocation clicks (3-8 kHz)
+- **Fish spawning** - Chorus sounds (500-2000 Hz)
+- **Busy harbor** - Heavy vessel traffic
 
-Test files are saved in `test_data/` with proper naming convention.
+Test files are saved in `test_wav_files/` with proper naming convention and realistic frequency content for testing the marine acoustic features.
 
 ## Troubleshooting
 
