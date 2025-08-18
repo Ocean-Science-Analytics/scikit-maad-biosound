@@ -426,6 +426,7 @@ def run_analysis():
     run_metadata.start_run(
         input_folder=input_folder_var.get(),
         output_folder=output_folder_var.get(),
+        run_identifier=run_identifier_var.get().strip(),
         mode_24h=mode_var_24h.get(),
         mode_30min=mode_var_30min.get(),
         mode_20min=mode_var_20min.get(),
@@ -919,10 +920,76 @@ def run_analysis():
     os.makedirs(output_metadata_path, exist_ok=True)
     os.makedirs(output_csv_path, exist_ok=True)
     
+    # Check for potential overwrites (always check, regardless of identifier)
+    run_id = run_identifier_var.get().strip()
+    
+    # Determine filenames that will be created
+    if run_id:
+        expected_files = [
+            (os.path.join(output_csv_path, f"{run_id}_Acoustic_Indices.csv"), f"{run_id}_Acoustic_Indices.csv"),
+            (os.path.join(output_figures_path, f"{run_id}_correlation_map.png"), f"{run_id}_correlation_map.png"),
+            (os.path.join(output_figures_path, f"{run_id}_individual_features.png"), f"{run_id}_individual_features.png"),
+            (os.path.join(output_figures_path, f"{run_id}_false_color_spectrograms.png"), f"{run_id}_false_color_spectrograms.png")
+        ]
+    else:
+        expected_files = [
+            (os.path.join(output_csv_path, "Acoustic_Indices.csv"), "Acoustic_Indices.csv"),
+            (os.path.join(output_figures_path, "correlation_map.png"), "correlation_map.png"),
+            (os.path.join(output_figures_path, "individual_features.png"), "individual_features.png"),
+            (os.path.join(output_figures_path, "false_color_spectrograms.png"), "false_color_spectrograms.png")
+        ]
+    
+    # Check which files actually exist
+    existing_files = []
+    for filepath, filename in expected_files:
+        if os.path.exists(filepath):
+            existing_files.append(filename)
+    
+    if existing_files:
+        # Files exist - warn user with context-appropriate message
+        if run_id:
+            # User provided identifier but files still exist (duplicate identifier)
+            message = f"⚠️ WARNING: Run identifier '{run_id}' already exists!\n\n"
+            message += "The following files will be OVERWRITTEN:\n"
+            message += "\n".join(f"  • {f}" for f in existing_files)
+            message += "\n\nThis could mean:\n"
+            message += "1. You're intentionally re-running the same analysis\n"
+            message += "2. You accidentally reused a previous identifier\n\n"
+            message += "To avoid overwriting:\n"
+            message += "• Change your Run Identifier (e.g., add '_v2', date, etc.)\n"
+            message += "• Choose a different output folder\n\n"
+            message += "Continue and overwrite existing files?"
+        else:
+            # No identifier provided
+            message = "⚠️ WARNING: The following files will be OVERWRITTEN:\n\n"
+            message += "\n".join(f"  • {f}" for f in existing_files)
+            message += "\n\nTo avoid overwriting:\n"
+            message += "1. Add a Run Identifier (e.g., 'Station1_2024')\n"
+            message += "2. Choose a different output folder\n\n"
+            message += "Continue and overwrite existing files?"
+        
+        result = messagebox.askyesno("Overwrite Warning", message, icon='warning')
+        if not result:
+            print("Analysis cancelled by user to avoid overwriting files.")
+            run_metadata.finish_run(success=False, error_message="Cancelled by user to avoid overwriting")
+            return
+        else:
+            # User chose to overwrite - record this in metadata
+            run_metadata.add_processing_info(
+                overwrite_warning_shown=True,
+                files_overwritten=existing_files,
+                user_confirmed_overwrite=True
+            )
+    
     # Save CSV (this should always work if we got this far)
     print("\nSaving results...")
     try:
-        output_file_path = os.path.join(output_csv_path, "Acoustic_Indices.csv")
+        # Use run identifier if provided
+        if run_id:
+            csv_filename = f"{run_id}_Acoustic_Indices.csv"
+        else:
+            csv_filename = "Acoustic_Indices.csv"
+        output_file_path = os.path.join(output_csv_path, csv_filename)
         full_df.to_csv(output_file_path, index=False)
         print(f"  CSV saved: {output_file_path}")
     except Exception as e:
@@ -968,8 +1035,10 @@ def run_analysis():
     try:
         print("  Creating correlation map...")
         fig_correlation, ax_correlation = plot_correlation_map(full_df, R_threshold=0, figsize=(12, 10))
-        fig_correlation.savefig(os.path.join(output_figures_path, "correlation_map.png"))
-        print("    Saved: correlation_map.png")
+        # Use run identifier for figure naming
+        correlation_filename = f"{run_id}_correlation_map.png" if run_id else "correlation_map.png"
+        fig_correlation.savefig(os.path.join(output_figures_path, correlation_filename))
+        print(f"    Saved: {correlation_filename}")
     except Exception as e:
         error_msg = f"Correlation map failed: {str(e)}"
         plots_failed.append("correlation_map")
@@ -991,8 +1060,9 @@ def run_analysis():
         
         fig.suptitle('Individual Acoustic Features', fontsize=16)
         fig.tight_layout()
-        fig.savefig(os.path.join(output_figures_path, "individual_features.png"))
-        print("    Saved: individual_features.png")
+        features_filename = f"{run_id}_individual_features.png" if run_id else "individual_features.png"
+        fig.savefig(os.path.join(output_figures_path, features_filename))
+        print(f"    Saved: {features_filename}")
     except Exception as e:
         error_msg = f"Individual features plot failed: {str(e)}"
         plots_failed.append("individual_features")
@@ -1011,8 +1081,9 @@ def run_analysis():
             display=False,
             figsize=(16, 14)
         )
-        plt.savefig(os.path.join(output_figures_path, "false_color_spectrograms.png"))
-        print("    Saved: false_color_spectrograms.png")
+        spectro_filename = f"{run_id}_false_color_spectrograms.png" if run_id else "false_color_spectrograms.png"
+        plt.savefig(os.path.join(output_figures_path, spectro_filename))
+        print(f"    Saved: {spectro_filename}")
     except Exception as e:
         error_msg = f"False color spectrogram failed: {str(e)}"
         plots_failed.append("false_color_spectrogram")
@@ -1147,23 +1218,32 @@ Label(root, text="Output Folder:", font=("Arial", 16), bg="navy", fg="white").gr
 Entry(root, textvariable=output_folder_var, font=("Arial", 14)).grid(row=2, column=2, padx=10, pady=10)
 Button(root, text="Browse", font=("Arial", 16), command=lambda: select_folder(output_folder_var)).grid(row=2, column=3, padx=10, pady=10)
 
+# Run Identifier (optional - for file naming)
+run_identifier_var = StringVar()
+Label(root, text="Run Identifier:", font=("Arial", 16), bg="navy", fg="white").grid(row=3, column=1, padx=10, pady=10)
+identifier_entry = Entry(root, textvariable=run_identifier_var, font=("Arial", 14))
+identifier_entry.grid(row=3, column=2, padx=10, pady=10)
+# Helpful hint about preventing overwrites
+hint_text = "(optional - prevents overwrites)"
+Label(root, text=hint_text, font=("Arial", 11, "italic"), bg="navy", fg="lightgray").grid(row=3, column=3, padx=10, pady=10, sticky='w')
+
 # Time Scale Checkboxes
 mode_var_24h = BooleanVar()
 mode_var_30min = BooleanVar()
 mode_var_20min = BooleanVar()
 
-Label(root, text="Time Scale:", font=("Arial", 16), bg="navy", fg="white").grid(row=4, column=1, padx=10, pady=10)
-Checkbutton(root, text="Hourly  ", font=("Arial", 16), variable=mode_var_24h, bg="navy", fg="white", selectcolor="darkgrey").grid(row=3, column=2, padx=10, pady=10)
-Checkbutton(root, text="Dataset", font=("Arial", 16), variable=mode_var_30min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10)
-Checkbutton(root, text="Manual ", font=("Arial", 16), variable=mode_var_20min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=5, pady=5)
+Label(root, text="Time Scale:", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=1, padx=10, pady=10)
+Checkbutton(root, text="Hourly  ", font=("Arial", 16), variable=mode_var_24h, bg="navy", fg="white", selectcolor="darkgrey").grid(row=4, column=2, padx=10, pady=10)
+Checkbutton(root, text="Dataset", font=("Arial", 16), variable=mode_var_30min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=5, column=2, padx=10, pady=10)
+Checkbutton(root, text="Manual ", font=("Arial", 16), variable=mode_var_20min, bg="navy", fg="white", selectcolor="darkgrey").grid(row=6, column=2, padx=5, pady=5)
 
 # Time Interval Input
 time_interval_var = StringVar()
-Label(root, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=4, columnspan=2, padx=5, pady=5)
-Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=5, column=3, columnspan=1, padx=5, pady=5)
+Label(root, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=6, column=4, columnspan=2, padx=5, pady=5)
+Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=6, column=3, columnspan=1, padx=5, pady=5)
 
 # Separator line
-Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=6, column=1, columnspan=4, pady=10)
+Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=7, column=1, columnspan=4, pady=10)
 
 # Frequency Band Controls (Optional - for marine acoustics)
 Label(root, text="Marine Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
@@ -1197,22 +1277,22 @@ Label(root, text="default: 0", font=("Arial", 10), bg="navy", fg="lightgray").gr
 gain_var.set("")  # Empty default
 
 # Performance Settings
-Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=12, column=1, columnspan=4, pady=10)
-Label(root, text="Performance Settings:", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=13, column=1, columnspan=3, padx=10, pady=10)
+Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=13, column=1, columnspan=4, pady=10)
+Label(root, text="Performance Settings:", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=14, column=1, columnspan=3, padx=10, pady=10)
 
 # Parallel processing checkbox
 parallel_var = BooleanVar()
 parallel_var.set(True)  # Default to enabled
 Checkbutton(root, text="Enable Parallel Processing (faster)", font=("Arial", 14), variable=parallel_var, 
-           bg="navy", fg="white", selectcolor="darkgrey").grid(row=14, column=1, columnspan=2, padx=10, pady=5, sticky='w')
+           bg="navy", fg="white", selectcolor="darkgrey").grid(row=15, column=1, columnspan=2, padx=10, pady=5, sticky='w')
 
 # Performance comparison checkbox
 compare_performance_var = BooleanVar()
 compare_performance_var.set(False)  # Default to disabled
 Checkbutton(root, text="Compare Performance (benchmark mode)", font=("Arial", 14), variable=compare_performance_var,
-           bg="navy", fg="white", selectcolor="darkgrey").grid(row=15, column=1, columnspan=2, padx=10, pady=5, sticky='w')
+           bg="navy", fg="white", selectcolor="darkgrey").grid(row=16, column=1, columnspan=2, padx=10, pady=5, sticky='w')
 
 # Run Button
-Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=16, column=1, columnspan=4, padx=10, pady=20)
+Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=17, column=1, columnspan=4, padx=10, pady=20)
 
 root.mainloop()

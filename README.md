@@ -30,11 +30,63 @@ This version merges and corrects multiple iterations of the marine acoustics GUI
    - Scenarios: vessel transits, dolphin echolocation, fish aggregations
    - Proper timestamp formatting for GUI compatibility
 
-### Migration Notes
-- Previous workflows remain compatible
-- Launch via `python main.py` (previously direct GUI script)
-- Existing output directories will adopt new structure automatically
-- Archive versions preserved in `archive/` for reference
+### Migration Guide for Existing Projects
+
+#### Previous Version Behavior
+The original implementation:
+- Saved all outputs directly in the selected output folder (flat structure)
+- Calculated frequency bands incorrectly, using only the first two frequency thresholds
+- Generated files: `Acoustic_Indices.csv`, `output_figures/` folder with plots
+- No run tracking or metadata preservation
+
+#### Current Version Behavior  
+The new implementation:
+- Creates organized subfolders: `data/`, `figures/`, `metadata/`
+- Properly calculates frequency bands across full specified ranges
+- Generates same core files but in organized locations
+- Adds timestamped metadata files for each run (never overwrites)
+
+#### Critical Considerations
+
+**Frequency Band Corrections Impact These Indices:**
+- **NDSI, BI, rBA** - Values will differ substantially from previous calculations
+- **AnthroEnergy, BioEnergy** - Now correctly allocated to appropriate frequency ranges
+- Other temporal and spectral indices remain unchanged
+
+**File Naming and Overwrite Protection:**
+The new **Run Identifier** field (optional) allows you to prefix output files with custom identifiers. The system provides comprehensive overwrite protection:
+
+- Without identifier: `Acoustic_Indices.csv`, `correlation_map.png` (warns if files exist)
+- With identifier "StationA_2024": `StationA_2024_Acoustic_Indices.csv`, `StationA_2024_correlation_map.png` (warns if identifier already used)
+
+**Protection scenarios:**
+- **No identifier + files exist**: Suggests adding identifier or changing folder
+- **Identifier provided + files exist**: Warns about duplicate identifier, suggests modifying it (e.g., adding "_v2")
+- **All cases**: User can cancel to make changes, or proceed with explicit overwrite confirmation
+
+Overwrite decisions are recorded in the metadata for full traceability.
+
+This enables flexible naming strategies:
+```
+outputs/
+├── data/
+│   ├── StationA_Spring_Acoustic_Indices.csv
+│   ├── StationB_Spring_Acoustic_Indices.csv
+│   └── StationC_Spring_Acoustic_Indices.csv
+└── figures/
+    ├── StationA_Spring_correlation_map.png
+    └── StationB_Spring_correlation_map.png
+```
+
+Alternatively, use separate output folders for complete isolation between stations.
+
+Metadata files are always timestamped and never overwritten, providing a complete history of all processing runs.
+
+#### Recommended Migration Path
+1. Create new output folders with "_corrected" suffix to distinguish from previous analyses
+2. Process a subset of files to quantify the magnitude of index changes
+3. Document the correction in methods sections of ongoing work
+4. Consider reprocessing all historical data for consistency 
 
 ---
 
