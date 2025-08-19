@@ -1,10 +1,20 @@
-.PHONY: help install test lint format fix clean
+.PHONY: help setup install test lint format fix clean
 
 help:  ## Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+
+setup:  ## Complete first-time setup (installs uv if needed, creates venv, installs dependencies)
+	@echo "🔧 Setting up scikit-maad-biosound..."
+	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
+	@echo "Creating virtual environment..."
+	uv venv
+	@echo "Installing project and dependencies..."
+	uv pip install -e .
+	uv pip install -e ".[dev]"
+	@echo "✅ Setup complete! You can now run: make gui"
 
 install:  ## Install the package in development mode
 	uv pip install -e .

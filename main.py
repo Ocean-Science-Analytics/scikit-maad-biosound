@@ -26,6 +26,7 @@ def main():
     
     # Import and run the main GUI
     from src.gui import main_gui
+    print("🎵 Starting Marine Acoustic Analysis GUI...")
 
 if __name__ == "__main__":
     main()
