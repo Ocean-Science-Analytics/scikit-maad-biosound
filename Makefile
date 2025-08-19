@@ -13,8 +13,19 @@ install:  ## Install the package in development mode
 test:  ## Run all tests
 	python tests/test_suite.py
 
-test-performance:  ## Run performance tests
-	python performance_test.py test_wav_files/ performance_output/
+test-performance:  ## Run performance tests (requires test data)
+	python scripts/performance_test.py test_wav_files/ performance_output/
+
+test-performance-fresh:  ## Run performance tests with fresh sample data
+	rm -rf test_wav_files/
+	python scripts/generate_samples.py -o test_wav_files
+	python scripts/performance_test.py test_wav_files/ performance_output/
+
+generate-samples:  ## Generate sample marine acoustic WAV files for testing
+	python scripts/generate_samples.py
+
+gui:  ## Launch the marine acoustic analysis GUI
+	scikit-maad-gui
 
 lint:  ## Check code with Ruff linter
 	ruff check src/ tests/ scripts/ --statistics
