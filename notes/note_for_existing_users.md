@@ -1,11 +1,11 @@
-# Quick Start for existing users
+# Quick Start for Existing Users
 
 ## One-time setup (only do this once per computer)
 
-1. **Get the code:**
+1. **Update to latest code:**
    ```bash
-   git clone [repository-url]
    cd scikit-maad-biosound
+   git pull
    ```
 
 2. **Setup everything:**
