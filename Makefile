@@ -37,6 +37,9 @@ generate-samples:  ## Generate sample marine acoustic WAV files for testing
 gui:  ## Launch the marine acoustic analysis GUI
 	scikit-maad-gui
 
+validate:  ## Validate calculations against scikit-maad
+	python scripts/validate_calculations.py
+
 lint:  ## Check code with Ruff linter
 	ruff check src/ tests/ scripts/ --statistics
 

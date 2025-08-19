@@ -118,47 +118,57 @@ A GUI-based tool for batch processing marine passive acoustic data, built on the
 
 ## Installation & Setup
 
-### Quick Setup
+### For macOS/Linux Users
+```bash
+git clone <repository-url>
+cd scikit-maad-biosound
+make setup    # Installs everything (uv, dependencies)
+make gui      # Launch the application
+```
 
-1. **Clone this repository:**
-   ```bash
-   git clone <repository-url>
-   cd scikit-maad-biosound
-   ```
+### For Windows Users
 
-2. **Install uv** (if you don't have it):
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-   Or visit [docs.astral.sh/uv](https://docs.astral.sh/uv/) for other installation methods.
+**Option 1: Using Git Bash (recommended)**
+```bash
+# Open Git Bash (comes with Git for Windows)
+git clone <repository-url>
+cd scikit-maad-biosound
+make setup
+make gui
+```
 
-3. **Install the project and dependencies:**
-   ```bash
-   uv pip install -e .
-   ```
+**Option 2: Command Prompt/PowerShell**
+```bash
+git clone <repository-url>
+cd scikit-maad-biosound
+# Install uv if you don't have it:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv pip install -e .
+python main.py
+```
 
-4. **Run the application:**
-   ```bash
-   python main.py
-   ```
-   
-   **Debug and Verbose Modes** (optional):
-   ```bash
-   python main.py --debug       # Show debug output for troubleshooting
-   python main.py --verbose     # Show detailed processing steps
-   python main.py --debug --verbose  # Show all diagnostic output
-   ```
-   
-5. **(Optional) Generate test files:**
-   ```bash
-   python generate_samples.py
-   ```
+### Advanced Options
+```bash
+python main.py --debug       # Show debug output for troubleshooting
+python main.py --verbose     # Show detailed processing steps
+python main.py --debug --verbose  # Show all diagnostic output
+```
 
-6. **(Optional) Validate calculations:**
-   ```bash
-   python scripts/validate_calculations.py
-   ```
-   This runs our implementation against direct scikit-maad calls to ensure calculations are correct. Generates validation reports in JSON and human-readable formats.
+### For Developers
+
+**Additional setup and testing commands:**
+```bash
+make generate-samples       # Create test audio files
+make test                  # Run test suite
+make test-performance      # Benchmark performance
+make test-performance-fresh # Benchmark with fresh test data
+```
+
+**Validation:**
+```bash
+make validate              # Validate calculations against scikit-maad
+```
+This runs our implementation against direct scikit-maad calls to ensure calculations are correct. Generates validation reports in JSON and human-readable formats.
 
 That's it! The GUI will open and you can start processing audio files.
 
