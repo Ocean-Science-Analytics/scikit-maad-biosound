@@ -45,10 +45,10 @@ print("- Intuitive focus/blur behavior matches modern web interfaces")
 
 print("\n🔧 TECHNICAL DETAILS:")
 print("- Placeholder state tracked with boolean arrays (e.g., flim_low_placeholder[0])")
-print("- FocusIn/FocusOut events handle placeholder visibility")  
+print("- FocusIn/FocusOut events handle placeholder visibility")
 print("- Processing logic checks placeholder state before using values")
 print("- Metadata collection excludes placeholder text")
 
-print(f"\n" + "=" * 60)
+print("\n" + "=" * 60)
 print("🎉 GUI IMPROVEMENTS COMPLETE!")
 print("The interface is now much clearer and more user-friendly.")

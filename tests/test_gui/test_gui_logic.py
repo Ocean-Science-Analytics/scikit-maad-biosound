@@ -27,13 +27,13 @@ def get_parameters_with_defaults(flim_low_str, flim_mid_str, sensitivity_str, ga
     flim_mid = parse_frequency_range(flim_mid_str) if flim_mid_str else [1500, 8000]
     sensitivity = float(sensitivity_str) if sensitivity_str else -35.0
     gain = float(gain_str) if gain_str else 0.0
-    
+
     return flim_low, flim_mid, sensitivity, gain
 
 def test_empty_fields_use_defaults():
     """Test that empty GUI fields result in default values"""
     flim_low, flim_mid, S, G = get_parameters_with_defaults("", "", "", "")
-    
+
     assert flim_low == [0, 1500], f"Expected [0, 1500], got {flim_low}"
     assert flim_mid == [1500, 8000], f"Expected [1500, 8000], got {flim_mid}"
     assert S == -35.0, f"Expected -35.0, got {S}"
@@ -45,7 +45,7 @@ def test_custom_marine_values():
     flim_low, flim_mid, S, G = get_parameters_with_defaults(
         "0,1000", "1000,8000", "-169.4", "10"
     )
-    
+
     assert flim_low == [0, 1000], f"Expected [0, 1000], got {flim_low}"
     assert flim_mid == [1000, 8000], f"Expected [1000, 8000], got {flim_mid}"
     assert S == -169.4, f"Expected -169.4, got {S}"
@@ -57,7 +57,7 @@ def test_partial_custom_values():
     flim_low, flim_mid, S, G = get_parameters_with_defaults(
         "0,500", "", "-169.4", ""
     )
-    
+
     assert flim_low == [0, 500], f"Expected [0, 500], got {flim_low}"
     assert flim_mid == [1500, 8000], f"Expected [1500, 8000] (default), got {flim_mid}"
     assert S == -169.4, f"Expected -169.4, got {S}"
@@ -72,7 +72,7 @@ def test_invalid_frequency_ranges():
         ("abc,def", "Invalid: non-numeric"),
         ("0,0", "Invalid: min >= max"),
     ]
-    
+
     for invalid_str, reason in invalid_cases:
         try:
             result = parse_frequency_range(invalid_str)
@@ -88,7 +88,7 @@ def test_frequency_band_overlap():
         ([0, 1000], [1500, 8000], True, "Gap between bands OK"),
         ([0, 1000], [0, 8000], False, "Complete overlap"),
     ]
-    
+
     for low, mid, should_be_valid, description in test_cases:
         # Check if bands don't overlap (except at boundary)
         is_valid = low[1] <= mid[0]
@@ -99,40 +99,40 @@ def test_frequency_band_overlap():
 def simulate_gui_workflow():
     """Simulate a complete GUI workflow"""
     print("\n--- Simulating GUI Workflow ---")
-    
+
     # User scenario 1: Using all defaults
     print("Scenario 1: User provides no custom settings")
     params = get_parameters_with_defaults("", "", "", "")
     print(f"  Using defaults: flim_low={params[0]}, flim_mid={params[1]}")
-    
+
     # User scenario 2: Marine acoustics researcher
     print("\nScenario 2: Marine acoustics with vessel noise")
     params = get_parameters_with_defaults("0,1000", "1000,8000", "-169.4", "0")
     print(f"  Marine settings: anthro={params[0]}, bio={params[1]}")
-    
+
     # User scenario 3: Custom frequency analysis
     print("\nScenario 3: Custom frequency bands")
     params = get_parameters_with_defaults("0,500", "2000,10000", "-150", "5")
     print(f"  Custom bands: low={params[0]}, mid={params[1]}")
-    
+
     print("\n✓ All workflow scenarios handled correctly")
 
 if __name__ == "__main__":
     print("Testing GUI Logic (No Display Required)")
     print("=" * 50)
-    
+
     test_empty_fields_use_defaults()
     test_custom_marine_values()
     test_partial_custom_values()
     print()
-    
+
     test_invalid_frequency_ranges()
     print()
-    
+
     test_frequency_band_overlap()
-    
+
     simulate_gui_workflow()
-    
+
     print("\n" + "=" * 50)
     print("All GUI logic tests passed! ✓")
     print("\nNote: These tests verify the GUI's business logic")
