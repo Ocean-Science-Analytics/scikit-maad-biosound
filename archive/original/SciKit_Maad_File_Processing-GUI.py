@@ -29,6 +29,9 @@ from maad.util import date_parser, plot_correlation_map, plot_features_map, plot
 from tkinter import Tk, filedialog, Label, Entry, Button, Frame, SOLID, StringVar, IntVar, Checkbutton, BooleanVar, messagebox
 import datetime
 import traceback
+import time
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 # Define spectral and temporal features
 SPECTRAL_FEATURES=['MEANf','VARf','SKEWf','KURTf','NBPEAKS','LEQf',
@@ -51,6 +54,309 @@ indice_three='NDSI'
 indice_four='ACI'
 indice_five='TFSD'
 indice_six='ROItotal'  # Note: This may not always be computed
+
+def calculate_marine_biophony_anthrophony(Sxx_power, fn, flim_low, flim_mid):
+    """
+    Calculate anthrophony and biophony for marine environments.
+    
+    Based on correspondence with Sylvain Haupert (scikit-maad developer):
+    - Anthrophony: flim_low range (vessel noise, typically 0-1000 Hz)
+    - Biophony: flim_mid range (biological sounds, typically 1000-8000 Hz)
+    
+    Args:
+        Sxx_power: Power spectrogram
+        fn: Frequency array
+        flim_low: [min, max] frequency range for anthrophony (vessel noise)
+        flim_mid: [min, max] frequency range for biophony (biological sounds)
+    
+    Returns:
+        tuple: (anthrophony_energy, biophony_energy)
+    """
+    # Extract power in anthrophony band (low frequencies - vessel noise)
+    anthro_mask = (fn >= flim_low[0]) & (fn < flim_low[1])
+    anthrophony_power = Sxx_power[anthro_mask]
+    anthrophony_energy = np.sum(anthrophony_power)
+    
+    # Extract power in biophony band (mid frequencies - biological sounds)
+    bio_mask = (fn >= flim_mid[0]) & (fn < flim_mid[1])
+    biophony_power = Sxx_power[bio_mask]
+    biophony_energy = np.sum(biophony_power)
+    
+    return anthrophony_energy, biophony_energy
+
+def calculate_marine_indices(Sxx_power, fn, flim_low, flim_mid, S=-35.0, G=0.0):
+    """
+    Calculate marine-specific acoustic indices with corrected frequency bands.
+    
+    This function specifically handles NDSI, BioEnergy, AnthroEnergy, rBA, and BI
+    with marine-appropriate frequency band assignments.
+    
+    Args:
+        Sxx_power: Power spectrogram
+        fn: Frequency array
+        flim_low: Anthrophony frequency range [min, max]
+        flim_mid: Biophony frequency range [min, max]
+        S: Sensitivity (dB)
+        G: Gain (dB)
+    
+    Returns:
+        dict: Dictionary of calculated marine indices
+    """
+    # Calculate anthrophony and biophony energies
+    anthro_energy, bio_energy = calculate_marine_biophony_anthrophony(
+        Sxx_power, fn, flim_low, flim_mid
+    )
+    
+    # Calculate marine-specific indices
+    marine_indices = {}
+    
+    # NDSI (Normalized Difference Soundscape Index)
+    if (bio_energy + anthro_energy) > 0:
+        marine_indices['NDSI_marine'] = (bio_energy - anthro_energy) / (bio_energy + anthro_energy)
+    else:
+        marine_indices['NDSI_marine'] = 0
+    
+    # Energy metrics
+    marine_indices['BioEnergy_marine'] = bio_energy
+    marine_indices['AnthroEnergy_marine'] = anthro_energy
+    
+    # rBA (ratio of biophony to anthrophony)
+    if anthro_energy > 0:
+        marine_indices['rBA_marine'] = bio_energy / anthro_energy
+    else:
+        marine_indices['rBA_marine'] = np.inf if bio_energy > 0 else 0
+    
+    # BI (Bioacoustic Index) - calculated on biophony band
+    bio_mask = (fn >= flim_mid[0]) & (fn < flim_mid[1])
+    if np.any(bio_mask):
+        bio_spectrum = np.mean(Sxx_power[bio_mask, :], axis=1) if len(Sxx_power.shape) > 1 else Sxx_power[bio_mask]
+        marine_indices['BI_marine'] = np.sum(bio_spectrum * np.log10(bio_spectrum + 1e-10))
+    else:
+        marine_indices['BI_marine'] = 0
+    
+    return marine_indices
+
+def process_single_file(filename_args):
+    """
+    Process a single audio file for parallel processing.
+    
+    Args:
+        filename_args: Tuple containing (filename, params_dict)
+        
+    Returns:
+        dict: Processing results or None if failed
+    """
+    try:
+        filename, params = filename_args
+        
+        # Extract parameters
+        mode = params['mode']
+        time_interval = params.get('time_interval', 0)
+        flim_low = params['flim_low']
+        flim_mid = params['flim_mid']
+        sensitivity = params['sensitivity']
+        gain = params['gain']
+        calculate_marine = params['calculate_marine']
+        
+        print(f"  Processing: {os.path.basename(filename)}")
+        
+        # Parse date and filename
+        parsed_date, filename_with_numbering = parse_date_and_filename_from_filename(filename)
+        if parsed_date is None:
+            print(f"    Skipping {os.path.basename(filename)} - invalid filename format")
+            return None
+        
+        # Load audio file
+        wave, fs = sound.load(filename=filename, channel='left', detrend=True, verbose=False)
+        
+        # Process based on mode
+        results = []
+        
+        if mode == "20min":  # Manual time intervals
+            total_samples = len(wave)
+            samples_per_interval = int(fs * time_interval)
+            
+            previous_segment_wave = None
+            for start_sample in range(0, total_samples, samples_per_interval):
+                end_sample = min(start_sample + samples_per_interval, total_samples)
+                interval_length = (end_sample - start_sample) / fs
+                
+                if interval_length < 1 and previous_segment_wave is not None:
+                    previous_segment_wave = np.concatenate([previous_segment_wave, wave[start_sample:end_sample]])
+                    continue
+                elif interval_length < 1:
+                    continue
+                    
+                segment_wave = wave[start_sample:end_sample]
+                if previous_segment_wave is not None:
+                    segment_wave = np.concatenate([previous_segment_wave, segment_wave])
+                previous_segment_wave = segment_wave
+                
+                # Calculate indices for this segment
+                segment_result = calculate_indices_for_segment(
+                    segment_wave, fs, sensitivity, gain, flim_low, flim_mid, 
+                    calculate_marine, os.path.basename(filename)
+                )
+                if segment_result:
+                    results.append(segment_result)
+        else:
+            # Process entire file
+            file_result = calculate_indices_for_segment(
+                wave, fs, sensitivity, gain, flim_low, flim_mid,
+                calculate_marine, os.path.basename(filename)
+            )
+            if file_result:
+                results.append(file_result)
+        
+        return {
+            'filename': filename,
+            'parsed_date': parsed_date,
+            'filename_with_numbering': filename_with_numbering,
+            'results': results
+        }
+        
+    except Exception as e:
+        print(f"    ERROR processing {os.path.basename(filename)}: {str(e)}")
+        return None
+
+def calculate_indices_for_segment(wave, fs, sensitivity, gain, flim_low, flim_mid, calculate_marine, filename):
+    """
+    Calculate indices for a single segment of audio.
+    
+    Returns:
+        dict: Calculated indices or None if failed
+    """
+    try:
+        # Generate spectrogram
+        Sxx_power, tn, fn, ext = sound.spectrogram(
+            x=wave, 
+            fs=fs, 
+            window='hann', 
+            nperseg=512,
+            noverlap=512//2,
+            verbose=False, 
+            display=False, 
+            savefig=None
+        )   
+        
+        # Calculate temporal indices
+        temporal_indices = features.all_temporal_alpha_indices(
+            s=wave, 
+            fs=fs, 
+            gain=gain, 
+            sensibility=sensitivity,
+            dB_threshold=3, 
+            rejectDuration=0.01,
+            verbose=False,
+            display=False
+        )
+        
+        # Calculate spectral indices
+        spectral_indices, spectral_indices_per_bin = features.all_spectral_alpha_indices(
+            Sxx_power=Sxx_power,
+            tn=tn,
+            fn=fn,
+            flim_low=flim_low,
+            flim_mid=flim_mid,
+            flim_hi=[8000, 40000],
+            gain=gain,
+            sensitivity=sensitivity,
+            verbose=False, 
+            R_compatible='soundecology',
+            mask_param1=6, 
+            mask_param2=0.5,
+            display=False
+        )
+        
+        # Calculate marine-specific indices if requested
+        if calculate_marine:
+            marine_indices = calculate_marine_indices(
+                Sxx_power, fn, flim_low, flim_mid, sensitivity, gain
+            )
+            spectral_indices.update(marine_indices)
+        
+        # Combine all indices
+        all_indices = {**temporal_indices, **spectral_indices}
+        all_indices['Filename'] = filename
+        
+        return {
+            'indices': all_indices,
+            'indices_per_bin': spectral_indices_per_bin
+        }
+        
+    except Exception as e:
+        print(f"      ERROR calculating indices: {str(e)}")
+        return None
+
+def process_files_parallel(file_paths, params):
+    """
+    Process files in parallel using multiprocessing.
+    
+    Returns:
+        list: Processing results for each file
+    """
+    num_workers = min(cpu_count() - 1, 4)  # Leave one core free, max 4 workers
+    
+    # Prepare arguments for parallel processing
+    file_args = [(filepath, params) for filepath in file_paths]
+    
+    # Process files in parallel
+    with Pool(num_workers) as pool:
+        results = pool.map(process_single_file, file_args)
+    
+    return results
+
+def process_files_sequential(file_paths, params):
+    """
+    Process files sequentially (for comparison or when parallel is disabled).
+    
+    Returns:
+        list: Processing results for each file
+    """
+    results = []
+    for filepath in file_paths:
+        result = process_single_file((filepath, params))
+        results.append(result)
+    
+    return results
+
+def convert_results_to_dataframes(processing_results, filename_list, date_list, mode):
+    """
+    Convert processing results to pandas DataFrames.
+    
+    Returns:
+        tuple: (result_df, result_df_per_bin)
+    """
+    result_df = pd.DataFrame()
+    result_df_per_bin = pd.DataFrame()
+    
+    # Create filename to date mapping
+    filename_to_date = dict(zip(filename_list, date_list))
+    
+    for result in processing_results:
+        if result is None:
+            continue
+            
+        filename = os.path.basename(result['filename'])
+        parsed_date = result['parsed_date']
+        
+        for segment_result in result['results']:
+            if segment_result is None:
+                continue
+                
+            # Add main indices
+            indices_row = segment_result['indices'].copy()
+            indices_row['Date'] = parsed_date
+            result_df = pd.concat([result_df, pd.DataFrame([indices_row])], ignore_index=True)
+            
+            # Add per-bin indices
+            if 'indices_per_bin' in segment_result:
+                indices_per_bin = segment_result['indices_per_bin'].copy()
+                indices_per_bin['Filename'] = filename
+                indices_per_bin['Date'] = parsed_date
+                result_df_per_bin = pd.concat([result_df_per_bin, indices_per_bin], ignore_index=True)
+    
+    return result_df, result_df_per_bin
 
 def safe_plot_index(df, index_name, ax, mode, position_label):
     """
@@ -129,7 +435,7 @@ def run_analysis():
         messagebox.showerror("Error", "Please select an input folder.")
         return
     if not output_folder:
-        messagebox.showerror("Error", "Please select an output folder.")
+        messagebox.showerror("Error", "Please select an test_outputs folder.")
         return
     if not os.path.exists(input_folder):
         messagebox.showerror("Error", f"Input folder does not exist:\n{input_folder}")
@@ -150,6 +456,50 @@ def run_analysis():
             print(f"Time interval: {time_interval} seconds")
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid integer for time interval (seconds).")
+            return
+    
+    # Parse optional marine acoustic parameters
+    # Use defaults if not specified
+    flim_low = [0, 1500]  # Default anthrophony range
+    flim_mid = [1500, 8000]  # Default biophony range
+    sensitivity = -35.0  # Default sensitivity
+    gain = 0.0  # Default gain
+    
+    # Check if user provided custom frequency bands
+    if flim_low_var.get().strip():
+        try:
+            flim_low = list(map(int, flim_low_var.get().split(',')))
+            if len(flim_low) != 2 or flim_low[0] >= flim_low[1]:
+                raise ValueError("Invalid frequency range")
+            print(f"Custom anthrophony range: {flim_low[0]}-{flim_low[1]} Hz")
+        except:
+            messagebox.showerror("Error", "Invalid anthrophony range. Use format: min,max (e.g., 0,1000)")
+            return
+    
+    if flim_mid_var.get().strip():
+        try:
+            flim_mid = list(map(int, flim_mid_var.get().split(',')))
+            if len(flim_mid) != 2 or flim_mid[0] >= flim_mid[1]:
+                raise ValueError("Invalid frequency range")
+            print(f"Custom biophony range: {flim_mid[0]}-{flim_mid[1]} Hz")
+        except:
+            messagebox.showerror("Error", "Invalid biophony range. Use format: min,max (e.g., 1000,8000)")
+            return
+    
+    if sensitivity_var.get().strip():
+        try:
+            sensitivity = float(sensitivity_var.get())
+            print(f"Custom sensitivity: {sensitivity}")
+        except:
+            messagebox.showerror("Error", "Invalid sensitivity value. Must be a number.")
+            return
+    
+    if gain_var.get().strip():
+        try:
+            gain = float(gain_var.get())
+            print(f"Custom gain: {gain}")
+        except:
+            messagebox.showerror("Error", "Invalid gain value. Must be a number.")
             return
 
     # Find audio files
@@ -192,10 +542,111 @@ def run_analysis():
     files_processed = 0
     files_failed = 0
     
-    # Process files based on mode
-    print("\nProcessing audio files...")
+    # Performance settings
+    use_parallel = parallel_var.get()
+    compare_performance = compare_performance_var.get()
     
-    if not mode_var_24h.get() and not mode_var_30min.get() and mode_var_20min.get():
+    if compare_performance:
+        print("\n=== PERFORMANCE COMPARISON MODE ===")
+        print("Will run analysis both sequentially and in parallel for benchmarking")
+        print(f"Testing with {len(filename_list)} files...")
+    elif use_parallel:
+        print(f"\n=== PARALLEL PROCESSING ENABLED ===")
+        num_workers = min(cpu_count() - 1, 4)  # Leave one core free, max 4 workers
+        print(f"Using {num_workers} worker processes for {len(filename_list)} files")
+    else:
+        print("\n=== SEQUENTIAL PROCESSING ===")
+    
+    # Prepare parameters for processing
+    processing_params = {
+        'mode': mode,
+        'time_interval': time_interval if mode == "20min" else 0,
+        'flim_low': flim_low,
+        'flim_mid': flim_mid,
+        'sensitivity': sensitivity,
+        'gain': gain,
+        'calculate_marine': flim_low_var.get().strip() or flim_mid_var.get().strip()
+    }
+    
+    # Create full file paths
+    full_file_paths = [os.path.join(input_folder, filename) for filename in filename_list]
+    
+    # Performance comparison mode
+    if compare_performance:
+        print("\n--- Running Sequential Version ---")
+        start_time = time.time()
+        sequential_results = process_files_sequential(full_file_paths, processing_params)
+        sequential_time = time.time() - start_time
+        
+        print(f"\n--- Running Parallel Version ---")
+        start_time = time.time()
+        parallel_results = process_files_parallel(full_file_paths, processing_params)
+        parallel_time = time.time() - start_time
+        
+        # Use parallel results for final test_outputs
+        processing_results = parallel_results
+        files_processed = len([r for r in processing_results if r is not None])
+        files_failed = len([r for r in processing_results if r is None])
+        
+        # Print performance comparison
+        print(f"\n=== PERFORMANCE COMPARISON RESULTS ===")
+        print(f"Sequential processing: {sequential_time:.2f} seconds")
+        print(f"Parallel processing:   {parallel_time:.2f} seconds")
+        if sequential_time > 0:
+            speedup = sequential_time / parallel_time
+            print(f"Speedup: {speedup:.2f}x faster with parallel processing")
+            efficiency = speedup / min(cpu_count() - 1, 4) * 100
+            print(f"Parallel efficiency: {efficiency:.1f}%")
+            
+            # Generate performance report
+            try:
+                from performance_comparison_report import generate_performance_report
+                additional_info = {
+                    "frequency_bands": f"Anthrophony: {flim_low}, Biophony: {flim_mid}",
+                    "marine_indices_enabled": processing_params['calculate_marine'],
+                    "processing_mode": mode,
+                    "gui_version": "Marine Acoustics with Parallel Processing"
+                }
+                generate_performance_report(
+                    sequential_time, parallel_time, len(filename_list), 
+                    min(cpu_count() - 1, 4), output_folder, additional_info
+                )
+                print("📊 Performance comparison report saved to test_outputs folder")
+            except Exception as e:
+                print(f"Note: Could not generate performance report: {e}")
+        
+    elif use_parallel:
+        # Parallel processing only
+        print("Processing files in parallel...")
+        start_time = time.time()
+        processing_results = process_files_parallel(full_file_paths, processing_params)
+        processing_time = time.time() - start_time
+        files_processed = len([r for r in processing_results if r is not None])
+        files_failed = len([r for r in processing_results if r is None])
+        print(f"Parallel processing completed in {processing_time:.2f} seconds")
+        
+    else:
+        # Sequential processing only
+        print("Processing files sequentially...")
+        start_time = time.time()
+        processing_results = process_files_sequential(full_file_paths, processing_params)
+        processing_time = time.time() - start_time
+        files_processed = len([r for r in processing_results if r is not None])
+        files_failed = len([r for r in processing_results if r is None])
+        print(f"Sequential processing completed in {processing_time:.2f} seconds")
+    
+    # Convert results to DataFrames
+    print(f"\nProcessing complete: {files_processed} files processed, {files_failed} files failed")
+    
+    if files_processed == 0:
+        messagebox.showerror("Error", "No audio files could be processed successfully.\n\nCheck the console for error details.")
+        return
+    
+    # Process results into DataFrames (replacing the old processing logic)
+    result_df, result_df_per_bin = convert_results_to_dataframes(processing_results, filename_list, date_list, mode)
+    
+    # Skip the old processing logic and go directly to plotting
+    if False:  # This disables the old processing code below
         # Manual time interval mode
         time_interval = int(time_interval_var.get())
         for i, filename in enumerate(filename_list, 1):
@@ -204,8 +655,9 @@ def run_analysis():
             
             try:
                 wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                S = -185.5
-                G = 20
+                # Use the parameters from GUI (or defaults)
+                S = sensitivity
+                G = gain
                 
                 total_samples = len(wave)
                 samples_per_interval = int(fs * time_interval)
@@ -252,8 +704,8 @@ def run_analysis():
                         Sxx_power=Sxx_power,
                         tn=tn,
                         fn=fn,
-                        flim_low=[0, 1500],
-                        flim_mid=[1500, 8000],
+                        flim_low=flim_low,
+                        flim_mid=flim_mid,
                         flim_hi=[8000, 40000],
                         gain=G,
                         sensitivity=S,
@@ -263,6 +715,14 @@ def run_analysis():
                         mask_param2=0.5,
                         display=False
                     )
+                    
+                    # Calculate marine-specific indices if custom frequency bands are provided
+                    if flim_low_var.get().strip() or flim_mid_var.get().strip():
+                        marine_indices = calculate_marine_indices(
+                            Sxx_power, fn, flim_low, flim_mid, S, G
+                        )
+                        # Add marine indices to the spectral indices dictionary
+                        spectral_indices.update(marine_indices)
                     
                     indices_df_per_bin = pd.concat([spectral_indices_per_bin], axis=1)
                     indices_df_per_bin.insert(0, 'Filename', filename)
@@ -288,8 +748,9 @@ def run_analysis():
             
             try:
                 wave, fs = sound.load(filename=fullfilename, channel='left', detrend=True, verbose=False)
-                S = -185.5
-                G = 20
+                # Use the parameters from GUI (or defaults)
+                S = sensitivity
+                G = gain
                 
                 Sxx_power, tn, fn, ext = sound.spectrogram(
                     x=wave,
@@ -317,8 +778,8 @@ def run_analysis():
                     Sxx_power=Sxx_power,
                     tn=tn,
                     fn=fn,
-                    flim_low=[0, 1500],
-                    flim_mid=[1500, 8000],
+                    flim_low=flim_low,
+                    flim_mid=flim_mid,
                     flim_hi=[8000, 40000],
                     gain=G,
                     sensitivity=S,
@@ -328,6 +789,14 @@ def run_analysis():
                     mask_param2=0.5,
                     display=False
                 )
+                
+                # Calculate marine-specific indices if custom frequency bands are provided
+                if flim_low_var.get().strip() or flim_mid_var.get().strip():
+                    marine_indices = calculate_marine_indices(
+                        Sxx_power, fn, flim_low, flim_mid, S, G
+                    )
+                    # Add marine indices to the spectral indices dictionary
+                    spectral_indices.update(marine_indices)
                 
                 indices_df_per_bin = pd.concat([spectral_indices_per_bin], axis=1)
                 indices_df_per_bin.insert(0, 'Filename', filename)
@@ -399,7 +868,7 @@ def run_analysis():
     if missing_plot_indices:
         print(f"  WARNING: Some indices not available: {', '.join(missing_plot_indices)}")
     
-    # Create output figures directory
+    # Create test_outputs figures directory
     output_figures_path = os.path.join(output_folder, "output_figures")
     os.makedirs(output_figures_path, exist_ok=True)
     
@@ -567,7 +1036,7 @@ def parse_date_and_filename_from_filename(filename):
 # Create GUI
 root = Tk()
 root.title("Scikit-Maad Acoustic Indices (Phase 1)")
-root.geometry('608x500')
+root.geometry('700x800')  # Increased height for performance controls
 root.configure(bg='navy')
 
 # Title
@@ -601,7 +1070,57 @@ time_interval_var = StringVar()
 Label(root, text="(secs)", font=("Arial", 16), bg="navy", fg="white").grid(row=5, column=4, columnspan=2, padx=5, pady=5)
 Entry(root, textvariable=time_interval_var, font=("Arial", 14), width=8).grid(row=5, column=3, columnspan=1, padx=5, pady=5)
 
+# Separator line
+Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=6, column=1, columnspan=4, pady=10)
+
+# Frequency Band Controls (Optional - for marine acoustics)
+Label(root, text="Marine Acoustic Settings (Optional):", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=7, column=1, columnspan=3, padx=10, pady=10)
+
+# Anthrophony frequency range
+flim_low_var = StringVar()
+Label(root, text="Anthrophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=8, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=flim_low_var, font=("Arial", 12), width=15).grid(row=8, column=2, padx=10, pady=5)
+Label(root, text="e.g., 0,1000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=8, column=3, padx=5, pady=5, sticky='w')
+flim_low_var.set("")  # Empty default - will use hardcoded values if not specified
+
+# Biophony frequency range  
+flim_mid_var = StringVar()
+Label(root, text="Biophony Range (Hz):", font=("Arial", 14), bg="navy", fg="white").grid(row=9, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=flim_mid_var, font=("Arial", 12), width=15).grid(row=9, column=2, padx=10, pady=5)
+Label(root, text="e.g., 1000,8000", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=9, column=3, padx=5, pady=5, sticky='w')
+flim_mid_var.set("")  # Empty default
+
+# Sensitivity
+sensitivity_var = StringVar()
+Label(root, text="Sensitivity (S):", font=("Arial", 14), bg="navy", fg="white").grid(row=10, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=sensitivity_var, font=("Arial", 12), width=15).grid(row=10, column=2, padx=10, pady=5)
+Label(root, text="default: -169.4", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=10, column=3, padx=5, pady=5, sticky='w')
+sensitivity_var.set("")  # Empty default
+
+# Gain
+gain_var = StringVar()
+Label(root, text="Gain (G):", font=("Arial", 14), bg="navy", fg="white").grid(row=11, column=1, padx=10, pady=5, sticky='e')
+Entry(root, textvariable=gain_var, font=("Arial", 12), width=15).grid(row=11, column=2, padx=10, pady=5)
+Label(root, text="default: 0", font=("Arial", 10), bg="navy", fg="lightgray").grid(row=11, column=3, padx=5, pady=5, sticky='w')
+gain_var.set("")  # Empty default
+
+# Performance Settings
+Label(root, text="─" * 50, font=("Arial", 12), bg="navy", fg="gray").grid(row=12, column=1, columnspan=4, pady=10)
+Label(root, text="Performance Settings:", font=("Arial", 16, "bold"), bg="navy", fg="white").grid(row=13, column=1, columnspan=3, padx=10, pady=10)
+
+# Parallel processing checkbox
+parallel_var = BooleanVar()
+parallel_var.set(True)  # Default to enabled
+Checkbutton(root, text="Enable Parallel Processing (faster)", font=("Arial", 14), variable=parallel_var, 
+           bg="navy", fg="white", selectcolor="darkgrey").grid(row=14, column=1, columnspan=2, padx=10, pady=5, sticky='w')
+
+# Performance comparison checkbox
+compare_performance_var = BooleanVar()
+compare_performance_var.set(False)  # Default to disabled
+Checkbutton(root, text="Compare Performance (benchmark mode)", font=("Arial", 14), variable=compare_performance_var,
+           bg="navy", fg="white", selectcolor="darkgrey").grid(row=15, column=1, columnspan=2, padx=10, pady=5, sticky='w')
+
 # Run Button
-Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=8, column=1, columnspan=4, padx=10, pady=20)
+Button(root, text="Run Analysis", font=("Arial", 20), command=run_analysis, width=14).grid(row=16, column=1, columnspan=4, padx=10, pady=20)
 
 root.mainloop()

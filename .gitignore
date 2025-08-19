@@ -11,12 +11,33 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
 env/
 venv/
 ENV/
+.venv/
+.env
 
 # Development notes (keep private)
-/notes
+#/notes
 
 # Test data and outputs
 /test_data
@@ -31,3 +52,14 @@ Acoustic_Indices.csv
 # Uncomment if you don't want to track archived versions
 # /archive
 /.idea
+/performance_report*.json
+/performance_report*.txt
+
+*.wav
+
+scripts/**/*.json
+scripts/**/*.txt
+
+test_outputs/*
+
+performance_output/*
