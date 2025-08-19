@@ -272,6 +272,22 @@ Validation reports are automatically saved to the scripts folder with timestamps
 
 ## For Developers
 
+### Development Workflow
+
+This project includes **Makefile commands** for streamlined development tasks. These are tools for people modifying the code (not needed for regular users).
+
+See the **Makefile** in the project root for all available commands. Key ones include:
+
+```bash
+make help        # Show all available commands
+make test        # Run all tests  
+make fix         # Auto-format code and fix style issues
+make lint        # Check code quality
+make all-checks  # Run comprehensive checks (lint, format, tests)
+```
+
+The Makefile automates common development tasks like ensuring code quality, running tests, and validating calculations. If you're contributing code changes, these commands help maintain the project's reliability and consistency.
+
 ### Running Tests
 
 **Basic tests** (no external dependencies):

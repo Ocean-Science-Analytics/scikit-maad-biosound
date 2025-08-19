@@ -11,8 +11,3 @@ Global flags that can be set by main.py and used throughout the application:
 """
 
 # Import from shared utilities for backward compatibility
-from utils.debug_utils import (
-    DEBUG_MODE, VERBOSE_MODE, 
-    debug_print, verbose_print,
-    set_debug_mode, set_verbose_mode, configure_debug
-)

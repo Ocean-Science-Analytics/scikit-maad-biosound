@@ -118,3 +118,87 @@ module = [
     "tkinter.*",
 ]
 ignore_missing_imports = true
+
+[tool.ruff]
+# Set the target Python version
+target-version = "py38"
+
+# Same line length as Black
+line-length = 88
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "archive",
+    "test_outputs",
+    "test_wav_files",
+    "performance_output",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and more
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "T10",  # flake8-debugger
+    "RUF",  # Ruff-specific rules
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "E741",  # Ambiguous variable name
+    "B008",  # Do not perform function calls in argument defaults
+    "B905",  # `zip()` without an explicit `strict=` parameter
+    "C901",  # Function is too complex
+    "RUF001", # String contains ambiguous unicode character
+    "RUF002", # Docstring contains ambiguous unicode character
+    "RUF003", # Comment contains ambiguous unicode character
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+# Combine imports from the same module
+combine-as-imports = true
+
+# Known first-party modules
+known-first-party = ["scikit_maad_biosound", "gui", "processing", "utils"]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore import violations in __init__ files
+"__init__.py" = ["F401", "F403"]
+
+# Ignore some rules in tests
+"tests/*.py" = ["F841", "B008"]
+"test_*.py" = ["F841", "B008"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with 4 spaces
+indent-style = "space"
+
+# Respect magic trailing commas
+skip-magic-trailing-comma = false
+
+# Unix-style line endings
+line-ending = "auto"

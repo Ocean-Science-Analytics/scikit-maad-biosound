@@ -83,12 +83,12 @@ def test_parallel_vs_sequential():
 def deterministic_processor(args):
     """Deterministic processor function (module level for pickling)"""
     filename, params = args
-    # Deterministic result based on filename
-    hash_val = hash(filename) % 1000
+    # Deterministic result based on filename (using sum of ASCII values)
+    ascii_sum = sum(ord(c) for c in filename) % 1000
     return {
         'filename': filename,
-        'value': hash_val,
-        'indices': {'test_index': hash_val / 1000.0}
+        'value': ascii_sum,
+        'indices': {'test_index': ascii_sum / 1000.0}
     }
 
 def test_parallel_correctness():

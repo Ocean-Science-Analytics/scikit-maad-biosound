@@ -37,7 +37,7 @@ ENV/
 .env
 
 # Development notes (keep private)
-/notes
+#/notes
 
 # Test data and outputs
 /test_data
@@ -59,3 +59,7 @@ Acoustic_Indices.csv
 
 scripts/**/*.json
 scripts/**/*.txt
+
+test_outputs/*
+
+performance_output/*
