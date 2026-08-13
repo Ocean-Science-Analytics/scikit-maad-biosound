@@ -26,6 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 import datetime
 import multiprocessing
+import re
 import os
 import sys
 import time
@@ -765,7 +766,13 @@ def run_analysis():
     if not filename_list:
         messagebox.showerror(
             "Error",
-            "No files with valid naming convention found.\n\nExpected format: [prefix]_YYYYMMDD_HHMMSS_[suffix].wav",
+            "No files with valid naming convention found.\n\n"
+            "Filenames must contain a date and time in the format "
+            "YYYYMMDD_HHMMSS or YYYYMMDD-HHMMSS (8-digit date, 6-digit time).\n\n"
+            "An optional prefix and/or suffix can appear before/after it, e.g.:\n"
+            "  20240515_143022.wav\n"
+            "  Site1_20240515_143022.wav\n"
+            "  Site1_20240515-143022_A.wav",
         )
         return
 
@@ -1685,50 +1692,50 @@ def select_folder(var):
     folder_path = filedialog.askdirectory(title="Select Folder", initialdir=initial_dir)
     var.set(folder_path)
 
+# This is the new date/time format for the function below.
+# Matches an 8-digit date and 6-digit time, separated by "_" or "-",
+# anywhere in the filename. Prefix and suffix (if present) are ignored.
+DATETIME_PATTERN = re.compile(r"(\d{8})[_-](\d{6})")
 
 def parse_date_and_filename_from_filename(filename):
     """
-    Parse date and filename from WAV file naming convention.
+    Parse date and time from a WAV filename.
 
-    Expected format: [prefix]_YYYYMMDD_HHMMSS_[suffix].wav
+    Looks for an 8-digit date (YYYYMMDD) and 6-digit time (HHMMSS)
+    separated by "_" or "-", anywhere in the filename. Any prefix
+    and/or suffix around that date/time are optional.
+
+    Examples that all parse successfully:
+        1.) Recording_20240515_143022_001.wav
+        2.) 20240515_143022.wav
+        3.) HYDDBA105OOI_20170103-082000_test.wav
+        4.) Site1-20231225_060000.wav
 
     Args:
         filename: Full path to the WAV file
 
     Returns:
-        tuple: (datetime object, filename with numbering) or (None, None) if parsing fails
+        tuple: (datetime object, basename) or (None, None) if parsing fails
     """
-    try:
-        basename = os.path.basename(filename)
-        parts = basename.split("_")
+    basename = os.path.basename(filename)
+    match = DATETIME_PATTERN.search(basename)
 
-        # Need at least 4 parts: prefix, date, time, suffix
-        if len(parts) < 4:
-            raise ValueError("Not enough underscore-separated parts")
-
-        # Parse date from second part
-        date_str = parts[1]
-        if len(date_str) != 8:
-            raise ValueError("Date part should be 8 digits (YYYYMMDD)")
-        year = int(date_str[:4])
-        month = int(date_str[4:6])
-        day = int(date_str[6:8])
-
-        # Parse time from third part
-        time_str = parts[2]
-        if len(time_str) != 6:
-            raise ValueError("Time part should be 6 digits (HHMMSS)")
-        hour = int(time_str[:2])
-        minute = int(time_str[2:4])
-        second = int(time_str[4:6])
-
-        dt = datetime.datetime(year, month, day, hour, minute, second)
-        filename_with_numbering = "_".join(parts[:-1]) + "_" + parts[-1]
-        return dt, filename_with_numbering
-
-    except Exception as e:
-        print(f"    Could not parse '{os.path.basename(filename)}': {e!s}")
+    if not match:
+        print(f"    Could not parse '{basename}': no YYYYMMDD_HHMMSS (or -) pattern found")
         return None, None
+
+    date_str, time_str = match.group(1), match.group(2)
+
+    try:
+        dt = datetime.datetime(
+            int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+            int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]),
+        )
+    except ValueError as e:
+        print(f"    Could not parse '{basename}': invalid date/time values ({e})")
+        return None, None
+
+    return dt, basename
 
 
 # Create GUI with scrollable frame

@@ -7,6 +7,8 @@ crashes and provide clear error messages.
 """
 
 import os
+import datetime
+import re
 from typing import List, Optional, Tuple, Union
 
 
@@ -207,61 +209,23 @@ def validate_wav_filename(filename: str) -> bool:
     """
     Validate WAV file naming convention.
 
-    Expected format: [prefix]_YYYYMMDD_HHMMSS_[suffix].wav
-
-    Args:
-        filename: Filename to validate
-
-    Returns:
-        bool: True if filename follows convention
+    Looks for an 8-digit date (YYYYMMDD) and 6-digit time (HHMMSS),
+    separated by "_" or "-", anywhere in the filename. Prefix/suffix optional.
     """
     if not filename.lower().endswith(".wav"):
         return False
 
     basename = os.path.basename(filename)
-    parts = basename.split("_")
-
-    # Need at least 4 parts: prefix, date, time, suffix.wav
-    if len(parts) < 4:
+    match = re.search(r"(\d{8})[_-](\d{6})", basename)
+    if not match:
         return False
 
-    # Check date part (second part)
-    date_part = parts[1]
-    if len(date_part) != 8 or not date_part.isdigit():
-        return False
+    date_part, time_part = match.group(1), match.group(2)
 
-    # Basic date validation
     try:
-        year = int(date_part[:4])
-        month = int(date_part[4:6])
-        day = int(date_part[6:8])
-
-        if not (1900 <= year <= 2100):
-            return False
-        if not (1 <= month <= 12):
-            return False
-        if not (1 <= day <= 31):
-            return False
-    except ValueError:
-        return False
-
-    # Check time part (third part)
-    time_part = parts[2]
-    if len(time_part) != 6 or not time_part.isdigit():
-        return False
-
-    # Basic time validation
-    try:
-        hour = int(time_part[:2])
-        minute = int(time_part[2:4])
-        second = int(time_part[4:6])
-
-        if not (0 <= hour <= 23):
-            return False
-        if not (0 <= minute <= 59):
-            return False
-        if not (0 <= second <= 59):
-            return False
+        year, month, day = int(date_part[:4]), int(date_part[4:6]), int(date_part[6:8])
+        hour, minute, second = int(time_part[:2]), int(time_part[2:4]), int(time_part[4:6])
+        datetime.datetime(year, month, day, hour, minute, second)
     except ValueError:
         return False
 
