@@ -766,7 +766,13 @@ def run_analysis():
     if not filename_list:
         messagebox.showerror(
             "Error",
-            "No files with valid naming convention found.\n\nExpected format: [prefix]_YYYYMMDD_HHMMSS_[suffix].wav",
+            "No files with valid naming convention found.\n\n"
+            "Filenames must contain a date and time in the format "
+            "YYYYMMDD_HHMMSS or YYYYMMDD-HHMMSS (8-digit date, 6-digit time).\n\n"
+            "An optional prefix and/or suffix can appear before/after it, e.g.:\n"
+            "  20240515_143022.wav\n"
+            "  Site1_20240515_143022.wav\n"
+            "  Site1_20240515-143022_A.wav",
         )
         return
 
