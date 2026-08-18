@@ -15,6 +15,7 @@
 # Added the manual time interval option which measures indices based off the user defined samples (time interval)
 # Simplified the input for the six different indices for the 'individual features plot'
 # Modified by M. Weirathmueller August 2025 - bug fix + documentation updates
+# Fixed mismatch between Pandas dataframe and Python dictionary in "if calculate_marine:" call (Jared Stephens 08/17/2026)
 
 #############################################################################################################################################################################################
 
