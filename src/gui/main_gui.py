@@ -376,7 +376,7 @@ def calculate_indices_for_segment(
                 fn=fn,
                 flim_low=flim_low,
                 flim_mid=flim_mid,
-                flim_hi=[8000, 40000],
+                flim_hi=[8000, fs / 2],
                 gain=gain,
                 sensitivity=sensitivity,
                 verbose=False,
@@ -387,18 +387,33 @@ def calculate_indices_for_segment(
             )
         )
 
+        # Convert the one-row scikit-maad DataFrames to dictionaries
+        temporal_dict = temporal_indices.iloc[0].to_dict()
+        spectral_dict = spectral_indices.iloc[0].to_dict()
+
         # Calculate marine-specific indices if requested
         if calculate_marine:
             marine_indices = calculate_marine_indices(
-                Sxx_power, fn, flim_low, flim_mid, sensitivity, gain
+                Sxx_power,
+                fn,
+                flim_low,
+                flim_mid,
+                sensitivity,
+                gain
             )
-            spectral_indices.update(marine_indices)
-
-        # Combine all indices
-        all_indices = {**temporal_indices, **spectral_indices}
+        # Add marine scalar indices to the spectral dictionary
+        spectral_dict.update(marine_indices)
+        # Combine temporal and spectral indices
+        all_indices = {
+            **temporal_dict,
+            **spectral_dict
+        }
         all_indices["Filename"] = filename
+        return {
+            "indices": all_indices,
+            "indices_per_bin": spectral_indices_per_bin
+        }
 
-        return {"indices": all_indices, "indices_per_bin": spectral_indices_per_bin}
 
     except Exception as e:
         print(f"      ERROR calculating indices: {e!s}")
@@ -442,7 +457,7 @@ def process_files_parallel(file_paths, params):
 
             # Add timeout to prevent hanging
             async_result = pool.map_async(process_single_file_standalone, file_args)
-            results = async_result.get(timeout=30)  # 30 second timeout for testing
+            results = async_result.get(timeout=600)  # 10 minute timeout for testing
             debug_print(f"[DEBUG] Map operation completed, got {len(results)} results")
     except multiprocessing.TimeoutError:
         debug_print("[DEBUG] Parallel processing timed out after 30 seconds")
@@ -1150,7 +1165,7 @@ def run_analysis():
                         fn=fn,
                         flim_low=flim_low,
                         flim_mid=flim_mid,
-                        flim_hi=[8000, 40000],
+                        flim_hi=[8000, fs / 2],
                         gain=G,
                         sensitivity=S,
                         verbose=False,
