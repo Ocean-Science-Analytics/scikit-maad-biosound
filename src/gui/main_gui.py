@@ -16,6 +16,7 @@
 # Simplified the input for the six different indices for the 'individual features plot'
 # Modified by M. Weirathmueller August 2025 - bug fix + documentation updates
 # Fixed mismatch between Pandas dataframe and Python dictionary in "if calculate_marine:" call (Jared Stephens 08/17/2026)
+# Updated naming convention to read "YYYYMMDD_HHMMSS" and "YYMMDD_HHMMSS" formats with _ or - separating (Jared Stephens 08/24/2026)
 
 #############################################################################################################################################################################################
 
