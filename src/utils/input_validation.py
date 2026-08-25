@@ -209,21 +209,27 @@ def validate_wav_filename(filename: str) -> bool:
     """
     Validate WAV file naming convention.
 
-    Looks for an 8-digit date (YYYYMMDD) and 6-digit time (HHMMSS),
+    Looks for a date (YYYYMMDD or YYMMDD) and 6-digit time (HHMMSS),
     separated by "_" or "-", anywhere in the filename. Prefix/suffix optional.
     """
     if not filename.lower().endswith(".wav"):
         return False
 
     basename = os.path.basename(filename)
-    match = re.search(r"(\d{8})[_-](\d{6})", basename)
+    match = re.search(r"(\d{8}|\d{6})[_-](\d{6})", basename)
     if not match:
         return False
 
     date_part, time_part = match.group(1), match.group(2)
 
     try:
-        year, month, day = int(date_part[:4]), int(date_part[4:6]), int(date_part[6:8])
+        if len(date_part) == 8:
+            year, month, day = int(date_part[:4]), int(date_part[4:6]), int(date_part[6:8])
+        else:
+            yy = int(date_part[:2])
+            year = 2000 + yy if yy <= 68 else 1900 + yy
+            month, day = int(date_part[2:4]), int(date_part[4:6])
+
         hour, minute, second = int(time_part[:2]), int(time_part[2:4]), int(time_part[4:6])
         datetime.datetime(year, month, day, hour, minute, second)
     except ValueError:

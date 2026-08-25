@@ -26,23 +26,28 @@ except ImportError:
 
 
 # This is the new date/time format for the function below.
-# Matches an 8-digit date and 6-digit time, separated by "_" or "-",
-# anywhere in the filename. Prefix and suffix (if present) are ignored.
-DATETIME_PATTERN = re.compile(r"(\d{8})[_-](\d{6})")
+# Matches either an 8-digit (YYYYMMDD) or 6-digit (YYMMDD) date, followed
+# by "_" or "-", followed by a 6-digit time (HHMMSS). Prefix and suffix (if present) are ignored
+DATETIME_PATTERN = re.compile(r"(\d{8}|\d{6})[_-](\d{6})")
+
 
 def parse_date_and_filename_from_filename(filename):
     """
     Parse date and time from a WAV filename.
 
-    Looks for an 8-digit date (YYYYMMDD) and 6-digit time (HHMMSS)
-    separated by "_" or "-", anywhere in the filename. Any prefix
-    and/or suffix around that date/time are optional.
+    Looks for a date (either YYYYMMDD or YYMMDD) and a 6-digit time
+    (HHMMSS), separated by "_" or "-", anywhere in the filename. Any
+    prefix and/or suffix around that date/time are optional.
+
+    Two-digit years are expanded using the standard pivot: 00-68 -> 2000-2068,
+    69-99 -> 1969-1999.
 
     Examples that all parse successfully:
         1.) Recording_20240515_143022_001.wav
         2.) 20240515_143022.wav
         3.) HYDDBA105OOI_20170103-082000_test.wav
         4.) Site1-20231225_060000.wav
+        5.) HYDDBA105OOI_170103-082000_test.wav   (2-digit year -> 2017)
 
     Args:
         filename: Full path to the WAV file
@@ -54,14 +59,24 @@ def parse_date_and_filename_from_filename(filename):
     match = DATETIME_PATTERN.search(basename)
 
     if not match:
-        print(f"    Could not parse '{basename}': no YYYYMMDD_HHMMSS (or -) pattern found")
+        print(f"    Could not parse '{basename}': no YYYYMMDD/YYMMDD + HHMMSS pattern found")
         return None, None
 
     date_str, time_str = match.group(1), match.group(2)
 
     try:
+        if len(date_str) == 8:
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+        else:  # len == 6, two-digit year
+            yy = int(date_str[:2])
+            year = 2000 + yy if yy <= 68 else 1900 + yy
+            month = int(date_str[2:4])
+            day = int(date_str[4:6])
+
         dt = datetime.datetime(
-            int(date_str[:4]), int(date_str[4:6]), int(date_str[6:8]),
+            year, month, day,
             int(time_str[:2]), int(time_str[2:4]), int(time_str[4:6]),
         )
     except ValueError as e:
@@ -69,7 +84,6 @@ def parse_date_and_filename_from_filename(filename):
         return None, None
 
     return dt, basename
-
 
 def calculate_marine_biophony_anthrophony(Sxx_power, fn, flim_low, flim_mid):
     """
