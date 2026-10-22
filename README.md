@@ -1,5 +1,7 @@
 # Scikit-MAAD Acoustic Indices GUI
 
+**About this repository:** This is a modified version of [scikit-maad](https://github.com/scikit-maad/scikit-maad), the open-source soundscape analysis toolbox developed by Juan Sebastián Ulloa, Sylvain Haupert, Juan Felipe Latorre, Thierry Aubin, Jérôme Sueur and contributors. All acoustic analysis is performed by scikit-maad. Our changes are limited to making it easier to batch-process large sets of recordings and to support different audio file-naming conventions. For the full toolbox, documentation and updates, please visit the [original scikit-maad repository](https://github.com/scikit-maad/scikit-maad).
+
 ## Major Update: Frequency band fixes and GUI updates (August 2025)
 
 This version merges and corrects a few iterations of the marine acoustics GUI that had diverged. The primary fix addresses frequency band calculation errors identified through correspondence with the scikit-maad development team.
@@ -356,4 +358,22 @@ Issues and improvements can be discussed via GitHub issues or direct collaborati
 
 - Built on [scikit-maad](https://scikit-maad.github.io/) by Ulloa et al.
 - Original GUI by Jared Stephens
-- Updates and bug fixes by M. Weirathmueller 
+- Updates and bug fixes by M. Weirathmueller
+
+## Built on scikit-maad
+
+This app is a graphical interface for **[scikit-maad](https://github.com/scikit-maad/scikit-maad)**, an open-source Python toolbox for quantitative soundscape analysis. All acoustic index calculations are performed by scikit-maad. We are grateful to its developers, Juan Sebastián Ulloa, Sylvain Haupert, Juan Felipe Latorre, Thierry Aubin and Jérôme Sueur, and to its contributors, for the substantial work behind it. This interface is not affiliated with or endorsed by the scikit-maad developers.
+
+## How to cite
+
+If you use this app in your work, please cite scikit-maad:
+
+> Ulloa, J. S., Haupert, S., Latorre, J. F., Aubin, T., & Sueur, J. (2021). scikit-maad: An open-source and modular toolbox for quantitative soundscape analysis in Python. *Methods in Ecology and Evolution*. https://doi.org/10.1111/2041-210X.13711
+
+To also credit the interface:
+
+> Ocean Science Analytics. (2026). *Scikit-Maad GUI* [Computer software]. https://github.com/Ocean-Science-Analytics/scikit-maad-biosound
+
+## License
+
+The interface code is © 2026 Ocean Science Analytics, LLC and is licensed under the [BSD 3-Clause License](LICENSE). scikit-maad is © its developers and is distributed under its own BSD 3-Clause License.
