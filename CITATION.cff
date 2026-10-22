@@ -1,0 +1,43 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite scikit-maad (below), which performs all of the analysis."
+type: software
+title: "Scikit-Maad GUI (scikit-maad-biosound)"
+abstract: "A point-and-click graphical interface built on the open-source scikit-maad Python package for batch-processing marine passive acoustic recordings. It calculates more than 60 acoustic indices with scikit-maad, exports results as CSV files, and creates correlation maps and false-color spectrograms."
+authors:
+  - name: "Ocean Science Analytics, LLC"
+repository-code: "https://github.com/Ocean-Science-Analytics/scikit-maad-biosound"
+url: "https://www.oceanscienceanalytics.com/bioacoustic-resources"
+license: BSD-3-Clause
+version: "1.0"
+date-released: 2026-10-15
+keywords:
+  - "soundscape ecology"
+  - "acoustic indices"
+  - "scikit-maad"
+  - "bioacoustics"
+  - "Python"
+  - "GUI"
+preferred-citation:
+  type: article
+  title: "scikit-maad: An open-source and modular toolbox for quantitative soundscape analysis in Python"
+  authors:
+    - family-names: "Ulloa"
+      given-names: "Juan Sebastián"
+    - family-names: "Haupert"
+      given-names: "Sylvain"
+    - family-names: "Latorre"
+      given-names: "Juan Felipe"
+    - family-names: "Aubin"
+      given-names: "Thierry"
+    - family-names: "Sueur"
+      given-names: "Jérôme"
+  journal: "Methods in Ecology and Evolution"
+  year: 2021
+  doi: "10.1111/2041-210X.13711"
+references:
+  - type: software
+    title: "scikit-maad"
+    authors:
+      - name: "The scikit-maad developers"
+    repository-code: "https://github.com/scikit-maad/scikit-maad"
+    license: BSD-3-Clause
